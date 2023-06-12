@@ -210,7 +210,7 @@ let set_up_params params =
   set_ref formula_margin              params.formula_margin;
   set_ref mufu                        params.mufu;
   set_ref remove_temporary_files      params.remove_temporary_files;
-  set_ref reordering_of_arguments     (not params.disable_reordering_of_arguments);
+  set_ref reordering_of_arguments     params.disable_reordering_of_arguments;
   set_ref add_nu_level_extra_arguments params.add_nu_level_extra_arguments;
   set_ref no_eliminate_unused_arguments params.no_eliminate_unused_arguments;
   params.input

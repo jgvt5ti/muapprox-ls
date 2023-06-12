@@ -87,6 +87,8 @@ let rec abstract : abstraction_ty -> abstracted_ty = function
         (fun ret -> ATyArrow(ATyBool, ret)) ATyBool
   | TyArrow({ Id.ty = TyInt; _ }, ret) ->
       abstract ret
+  | TyArrow({ Id.ty = TyList; _ }, ret) ->
+      abstract ret
   | TyArrow({ Id.ty = TySigma arg; _}, ret) ->
       ATyArrow(abstract arg, abstract ret)
 
@@ -103,6 +105,7 @@ let eq_modulo_arg_ids : simple_ty -> simple_ty -> bool =
       | TySigma ty1', TySigma ty2' ->
         go ty1' ty2'
       | TyInt, TyInt -> true
+      | TyList, TyList -> true
       | _ -> false in
     tyf && go body1 body2
   end

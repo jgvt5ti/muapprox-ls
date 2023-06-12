@@ -72,6 +72,8 @@ let add_top_level_foralls hes =
         match arg.ty with
         | Type.TyInt ->
           Hflz.Forall (arg, acc)
+        | Type.TyList ->
+          Hflz.Forall (arg, acc)
         | Type.TySigma _ -> failwith @@ "Error: the top-level argument \"" ^ Id.to_string arg ^ "\"'s type is not integer"
       )
       ~init:entry_body
