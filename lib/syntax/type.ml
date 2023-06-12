@@ -4,6 +4,7 @@ open Hflmc2_util
 
 type 'ty arg
   = TyInt
+  | TyList
   | TySigma of 'ty
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
@@ -17,6 +18,7 @@ type 'annot arg_ty = 'annot ty arg
 
 let unsafe_unlift : 'annot arg_ty -> 'annot ty = function
   | TyInt -> invalid_arg "unsafe_unlift"
+  | TyList -> invalid_arg "unsafe_unlift"
   | TySigma ty -> ty
 
 let lift_arg x = Id.{ x with ty = TySigma x.ty }

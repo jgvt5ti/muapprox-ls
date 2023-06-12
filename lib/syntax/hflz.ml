@@ -110,7 +110,9 @@ let desugar_formula (formula : 'a Sugar.t) : 'a t =
     | Forall (x, f) -> Exists (x, neg f)
     | Exists (x, f) -> Forall (x, neg f)
     | Pred (p, args) -> Pred (Formula.negate_pred p, args)
+    | LsPred (p, arga, argl) -> LsPred (Formula.negate_ls_pred p, arga, argl)
     | Arith _-> failwith "(negate_subformula) cannot negate Arith"
+    | LsArith _-> failwith "(negate_subformula) cannot negate LsArith"
     | Var _  -> failwith "(negate_subformula) cannot negate Var"
     | Abs _  -> failwith "(negate_subformula) cannot negate Abs"
     | App _  -> failwith "(negate_subformula) cannot negate App"
@@ -125,7 +127,9 @@ let desugar_formula (formula : 'a Sugar.t) : 'a t =
     | Forall (x, phi1) -> Forall (x, thr phi1)
     | Exists (x, phi1) -> Exists (x, thr phi1)
     | Arith a          -> Arith a
+    | LsArith a        -> LsArith a
     | Pred (x, as')    -> Pred (x, as')
+    | LsPred (x, as',ls') -> LsPred (x, as', ls')
     | Not phi1         -> neg phi1 in
   thr formula
     
@@ -171,7 +175,8 @@ let is_negation_of f1 f2 =
     | Forall (x, f) -> Exists (x, neg f)
     | Exists (x, f) -> Forall (x, neg f)
     | Pred (p, args) -> Pred (Formula.negate_pred p, args)
-    | Arith _ | Var _ | Abs _ | App _ -> raise CannotNegate in
+    | LsPred (p, arga, argl) -> LsPred (Formula.negate_ls_pred p, arga, argl)
+    | Arith _ | LsArith _ | Var _ | Abs _ | App _ -> raise CannotNegate in
   try
     neg f1 = f2
   with CannotNegate -> false
@@ -193,7 +198,9 @@ let negate_formula (formula : Type.simple_ty t) =
     | Forall (x, f) -> Exists (x, go f)
     | Exists (x, f) -> Forall (x, go f)
     | Arith (arith) -> Arith (arith)
-    | Pred (p, args) -> Pred (Formula.negate_pred p, args) in
+    | LsArith (ls)  -> LsArith (ls)
+    | Pred (p, args) -> Pred (Formula.negate_pred p, args)
+    | LsPred (p, arga, argl) -> LsPred (Formula.negate_ls_pred p, arga, argl) in
   go formula
 
 let negate_rule ({var; body; fix} : Type.simple_ty hes_rule) = 
@@ -221,6 +228,8 @@ let ensure_no_mu_exists (hes : 'a hes) =
     | Exists _ -> false
     | App (f1, f2) -> no_exists f1 && no_exists f2
     | Arith _ -> true
-    | Pred _ -> true in
+    | LsArith _ -> true
+    | Pred _ -> true
+    | LsPred _ -> true in
   List.for_all ~f:(fun {body; fix; _} -> fix = Fixpoint.Greatest && no_exists body) ((mk_entry_rule (fst hes))::(snd hes))
   

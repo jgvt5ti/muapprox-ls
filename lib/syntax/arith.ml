@@ -33,6 +33,7 @@ let mk_op op as' = Op(op,as')
 let mk_var' v    = Var v
 (* specific to [t] *)
 let mk_var v : t = Var({v with ty = `Int})
+let mk_lvar v : lt = LVar({v with ty = `List})
 
 let rec fvs : 'var gen_t -> 'var list = function
   | Int _ -> []
