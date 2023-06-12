@@ -27,6 +27,9 @@ rule token = parse
 | ")"                      { RPAREN    }
 | "true"                   { TRUE      }
 | "false"                  { FALSE     }
+| "[]"                     { NIL       }
+| "len"                    { LENGTH    }
+| "nlen"                   { NEGLENGTH }
 | "!" | "not"              { NOT       }
 | ("\\"|"λ")               { LAMBDA    }
 | ("=v"|"=ν")              { DEF_G     }
@@ -56,6 +59,9 @@ rule token = parse
                            | ">="          -> GE
                            | "<"           -> LT
                            | ">"           -> GT
+                           | "::"          -> CONS
+                           | "=l"          -> EQL
+                           | "<>l"         -> NEQL
                            | ("&&"|"/\\")  -> AND
                            | ("||"|"\\/")  -> OR
                            | "=>"          -> IMPLY
