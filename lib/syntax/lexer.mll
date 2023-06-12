@@ -28,6 +28,9 @@ rule token = parse
 | "true"                   { TRUE      }
 | "false"                  { FALSE     }
 | "[]"                     { NIL       }
+| "::"                     { CONS      }
+| "=l"                     { EQL       }
+| "<>l"                    { NEQL       }
 | "len"                    { LENGTH    }
 | "nlen"                   { NEGLENGTH }
 | "!" | "not"              { NOT       }
@@ -60,8 +63,6 @@ rule token = parse
                            | "<"           -> LT
                            | ">"           -> GT
                            | "::"          -> CONS
-                           | "=l"          -> EQL
-                           | "<>l"         -> NEQL
                            | ("&&"|"/\\")  -> AND
                            | ("||"|"\\/")  -> OR
                            | "=>"          -> IMPLY

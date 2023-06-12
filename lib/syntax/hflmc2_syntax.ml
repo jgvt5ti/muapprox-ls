@@ -83,6 +83,12 @@ end = struct
             | I.T_EXISTS    -> "EXISTS"
             | I.T_SLASH     -> "SLASH"
             | I.T_PERCENT   -> "PERCENT"
+            | I.T_NIL       -> "NIL"
+            | I.T_NEQL      -> "NEQL"
+            | I.T_EQL       -> "EQL"
+            | I.T_CONS      -> "CONS"
+            | I.T_LENGTH    -> "LENGTH"
+            | I.T_NEGLENGTH -> "NEGLENGTH"
             end
         | I.X (I.N x) -> print @@ begin match x with
             | I.N_uvar                     -> "uvar"
@@ -106,6 +112,8 @@ end = struct
             | I.N_and_or_expr              -> "and_or_expr"
             | I.N_abs_expr                 -> "abs_expr"
             | I.N_main                     -> "main"
+            | I.N_size_pred                -> "size_pred"
+            | I.N_ls_pred                  -> "ls_pred"
             end
       let print_element = None
     end in (module User : PRINTER_DEF)

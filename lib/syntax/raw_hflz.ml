@@ -9,7 +9,10 @@ type raw_hflz =
   | App  of raw_hflz * raw_hflz
   | Int  of int
   | Op   of Arith.op * raw_hflz list
+  | Nil
+  | Cons of raw_hflz * raw_hflz
   | Pred of Formula.pred * raw_hflz list
+  | LsPred of Formula.ls_pred * raw_hflz list * raw_hflz list
   | Forall of string * raw_hflz
   | Exists of string * raw_hflz
   | Not of raw_hflz
@@ -25,6 +28,8 @@ type hes = hes_rule list
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
 let mk_int n     = Int(n)
+let mk_nil = Nil
+let mk_cons hd tl = Cons (hd, tl)
 let mk_bool b    = Bool b
 let mk_var x     = Var x
 let mk_op op as' = Op(op,as')
@@ -45,6 +50,8 @@ let mk_not x = Not x
 
 let mk_preds pred bs = Pred(pred, bs)
 let mk_pred pred a1 a2 = Pred(pred, [a1;a2])
+let mk_lspred pred a1 a2 = LsPred(pred, [], [a1;a2])
+let mk_sizepred pred as' ls' = LsPred (pred, [as'], [ls'])
 
 let mk_app t1 t2 = App(t1,t2)
 let mk_apps t ts = List.fold_left ts ~init:t ~f:mk_app
@@ -86,6 +93,7 @@ module Typing = struct
   type tyvar = (* simple_ty + simple_argty + type variable *)
     | TvRef of int * tyvar option ref * info
     | TvInt of info
+    | TvList of info
     | TvBool of info
     | TvArrow of tyvar * tyvar * info
     [@@deriving show { with_path = false }]
@@ -93,6 +101,7 @@ module Typing = struct
   let get_info v = match v with
     | TvRef (_, _, i) -> i
     | TvInt i -> i
+    | TvList i -> i
     | TvBool i -> i
     | TvArrow (_, _, i) -> i
     
@@ -105,6 +114,7 @@ module Typing = struct
   let rec pp_hum_tyvar : tyvar Print.t =
     fun ppf tv -> match tv with
       | TvInt _ -> Fmt.string ppf "int"
+      | TvList _ -> Fmt.string ppf "list"
       | TvBool _ -> Fmt.string ppf "o"
       | TvRef(id,{contents=None }, _) ->
           Fmt.pf ppf "tv%d" id
@@ -120,7 +130,7 @@ module Typing = struct
   exception Alias
   let rec occur : top:bool -> tyvar option ref -> tyvar -> bool =
     fun ~top r tv -> match tv with
-      | TvInt _ | TvBool _ -> false
+      | TvInt _ | TvBool _ | TvList _ -> false
       | TvArrow(tv1, tv2, _) -> occur ~top:false r tv1 || occur ~top:false r tv2
       | TvRef(_, ({contents=None} as r'), _) ->
           if r == r' && top then raise Alias else r == r'
@@ -141,7 +151,7 @@ module Typing = struct
 
   let rec write : tyvar option ref -> tyvar -> unit =
     fun r tv -> match tv with
-      | TvInt _ | TvBool _ | TvArrow _ -> r := Some tv
+      | TvInt _ | TvBool _ | TvList _ | TvArrow _ -> r := Some tv
       | TvRef (_, r', _) ->
           begin match !r' with
           | None -> r := Some tv
@@ -165,6 +175,7 @@ module Typing = struct
         pp_hum_tyvar tv2; *)
       match tv1, tv2 with
       | TvInt _, TvInt _ -> ()
+      | TvList _, TvList _ -> ()
       | TvBool _, TvBool _ -> ()
       | TvArrow(tv11,tv12, _),  TvArrow(tv21,tv22, _) ->
           unify tv11 tv21; unify tv12 tv22

@@ -68,8 +68,8 @@ module Subst = struct
               : ('var -> 'var -> bool)
              -> 'var
              -> 'var S.Arith.gen_t
-             -> ('bvar,'var) S.Formula.gen_t
-             -> ('bvar,'var) S.Formula.gen_t =
+             -> ('bvar,'var, 'lvar) S.Formula.gen_t
+             -> ('bvar,'var, 'lvar) S.Formula.gen_t =
       fun equal x a p ->
         match p with
         | Pred(prim, as') -> Pred(prim, List.map as' ~f:(arith_ equal x a))
@@ -489,10 +489,10 @@ module Simplify = struct
 
   let rec formula
             : 'bvar 'avar
-            . ?is_true:(('bvar, 'avar) Formula.gen_t -> bool)
-           -> ?is_false:(('bvar, 'avar) Formula.gen_t -> bool)
-           -> ('bvar, 'avar) Formula.gen_t
-           -> ('bvar, 'avar) Formula.gen_t =
+            . ?is_true:(('bvar, 'avar, 'lvar) Formula.gen_t -> bool)
+           -> ?is_false:(('bvar, 'avar, 'lvar) Formula.gen_t -> bool)
+           -> ('bvar, 'avar, 'lvar) Formula.gen_t
+           -> ('bvar, 'avar, 'lvar) Formula.gen_t =
     fun ?(is_true=is_true_def) ?(is_false=is_false_def) -> function
     | Formula.And phis ->
         let phis = List.map ~f:formula phis in

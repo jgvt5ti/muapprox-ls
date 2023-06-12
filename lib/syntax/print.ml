@@ -147,7 +147,7 @@ let pred_ : Formula.pred t_with_prec =
 let rec gen_formula_
     :  'bvar t_with_prec
     -> 'avar t_with_prec
-    -> ('bvar, 'avar) Formula.gen_t t_with_prec =
+    -> ('bvar, 'avar, 'lvar) Formula.gen_t t_with_prec =
   fun bvar avar prec ppf f -> match f with
     | Var x      -> bvar prec ppf x
     | Bool true  -> Fmt.string ppf "true"
@@ -169,7 +169,7 @@ let rec gen_formula_
 let gen_formula
     :  'bvar t_with_prec
     -> 'avar t_with_prec
-    -> ('bvar, 'avar) Formula.gen_t t =
+    -> ('bvar, 'avar, 'lvar) Formula.gen_t t =
   fun bvar avar ppf f ->
     gen_formula_ bvar avar Prec.zero ppf f
 let formula_ : Formula.t t_with_prec =

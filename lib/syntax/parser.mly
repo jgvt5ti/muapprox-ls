@@ -80,20 +80,14 @@ and_or_expr:
 
 pred_expr:
 | arith_expr                 { $1               }
+| arith_expr ls_pred arith_expr    { mk_lspred $2 $1 $3 }
 | arith_expr pred arith_expr { mk_pred $2 $1 $3 }
-| ls_expr ls_pred ls_expr { Formula.mk_lspred $2 [$1;$3] }
 
 arith_expr:
 | app_expr                 { $1                }
 | arith_expr op arith_expr { mk_op $2  [$1;$3] }
+| arith_expr "::" arith_expr { mk_cons $1 $3     }
 | "-" arith_expr %prec NEG { mk_op Arith.Sub [mk_int 0;$2] }
-
-ls_expr:
-| "[]"                     { Arith.mk_nil                        }
-| arith_expr "::" ls_expr  { Arith.mk_cons $1 $3                 }
-| lvar                     { let x = Id.{ name=$1; ty=`List; id=(-1) } in
-                             Arith.mk_lvar x
-                           }
 
 app_expr:
 | size_pred atom atom { mk_sizepred $1 $2 $3}
@@ -101,6 +95,7 @@ app_expr:
 
 atom:
 | INT  { mk_int   $1 }
+| NIL  { mk_nil      }
 | bool { mk_bool  $1 }
 | lvar { mk_var   $1 }
 | uvar { mk_var   $1 }

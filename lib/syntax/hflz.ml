@@ -17,7 +17,9 @@ module Sugar = struct
     | Exists of 'ty arg Id.t * 'ty t
     | App    of 'ty t * 'ty t
     | Arith  of Arith.t
+    | LsArith of Arith.lt
     | Pred   of Formula.pred * Arith.t list
+    | LsPred of Formula.ls_pred * Arith.t list * Arith.lt list
     [@@deriving eq,ord,show,iter,map,fold,sexp]
 
   type 'ty hes_rule =
@@ -50,7 +52,9 @@ type 'ty t =
   | Exists of 'ty arg Id.t * 'ty t
   | App    of 'ty t * 'ty t
   | Arith  of Arith.t
+  | LsArith of Arith.lt
   | Pred   of Formula.pred * Arith.t list
+  | LsPred of Formula.ls_pred * Arith.t list * Arith.lt list
   [@@deriving eq,ord,show,iter,map,fold,sexp]
     
 type 'ty hes_rule =
