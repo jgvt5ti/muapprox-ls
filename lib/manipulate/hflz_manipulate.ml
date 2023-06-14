@@ -54,6 +54,8 @@ let argty_to_var {Id.name; id; ty} =
   match ty with
   | Type.TyInt -> 
     Arith (Var {name; id; ty=`Int})
+  | Type.TyList -> 
+    LsArith (LVar {name; id; ty=`List})
   | Type.TySigma x -> 
     Var {name; id; ty=x}
   
@@ -91,6 +93,7 @@ let arg_id_to_var (x : 'ty Type.arg Id.t) =
   match x.Id.ty with
   | Type.TySigma t -> Var {x with ty=t}
   | Type.TyInt -> Arith (Var {x with ty=`Int})
+  | Type.TyList -> LsArith (LVar {x with ty=`List})
 
  (* : Type.simple_ty Type.arg Id.t list -> Type.simple_ty *)
 let args_ids_to_apps (ids : 'ty Type.arg Id.t list) : ('ty Hflz.t -> 'ty Hflz.t) = fun body ->

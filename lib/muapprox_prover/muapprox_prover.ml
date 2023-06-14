@@ -627,7 +627,9 @@ let fold_hflz folder phi init =
     | Hflz.Exists (_, f1) -> folder acc phi |> go f1
     | Hflz.App (f1, f2)   -> folder acc phi |> go f1 |> go f2
     | Hflz.Arith _ -> folder acc phi
-    | Hflz.Pred _ -> folder acc phi in
+    | Hflz.Pred _ -> folder acc phi
+    | Hflz.LsArith _ -> folder acc phi
+    | Hflz.LsPred _ -> folder acc phi in
   go phi init
 
 let is_onlyforall_body formula =

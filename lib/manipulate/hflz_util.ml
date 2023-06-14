@@ -74,6 +74,7 @@ let get_hflz_type phi =
       | TyArrow (x, ty1') -> begin
         (match x.ty with
         | TyInt -> (match f2 with Arith _ -> () | _ -> failwith @@ "Illegal type (App, Arrow) (ty1=TyInt, ty2=(not integet expression)) (expression: " ^ show_hflz phi ^ ")")
+        | TyList -> (match f2 with LsArith _ -> () | _ -> failwith @@ "Illegal type (App, Arrow) (ty1=TyList, ty2=(not integet expression)) (expression: " ^ show_hflz phi ^ ")")
         | TySigma t -> (
           let sty2 = go f2 in
           if not @@ eq_modulo_arg_ids t sty2 then (
@@ -88,6 +89,8 @@ let get_hflz_type phi =
     end
     | Pred _ -> TyBool ()
     | Arith _ -> failwith "Illegal type (Arith)"
+    | LsPred _ -> TyBool ()
+    | LsArith _ -> failwith "Illegal type (LsArith)"
   in
   go phi
 

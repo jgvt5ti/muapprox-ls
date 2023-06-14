@@ -147,9 +147,14 @@ let rec fvs = function
   | Forall (x,phi) -> IdSet.remove (fvs phi) x
   | Exists (x,phi) -> IdSet.remove (fvs phi) x
   | Arith a        -> IdSet.of_list @@ List.map ~f:Id.remove_ty @@ Arith.fvs a
+  | LsArith a      -> IdSet.of_list @@ Arith.lfvs_notype a
   | Pred (_,as')   -> IdSet.union_list @@ List.map as' ~f:begin fun a ->
                         IdSet.of_list @@ List.map ~f:Id.remove_ty @@ Arith.fvs a
                       end
+  | LsPred(_,as', ls')  -> (*todo
+    let fva = List.map as' ~f:(Id.remove_ty @@ Arith.fvs a) in *)
+    IdSet.of_list @@ List.concat @@ List.map ls' ~f:Arith.lfvs_notype
+
 
 let fvs_with_type : 'ty t -> 'ty Type.arg Id.t list = fun hes ->
   let rec go = function
@@ -162,7 +167,16 @@ let fvs_with_type : 'ty t -> 'ty Type.arg Id.t list = fun hes ->
     | Forall(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
     | Exists(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
     | Arith a        -> List'.map (fun id -> {id with Id.ty = Type.TyInt}) @@ Arith.fvs a
-    | Pred (_, as')   -> as' |> List'.map (fun a -> Arith.fvs a |> List'.map (fun id -> {id with Id.ty = Type.TyInt})) |> List'.flatten in
+    (* | LsArith a      -> List'.map (fun id -> {id with Id.ty = Type.TyList}) @@ Arith.lfvs a *)
+    | Pred (_, as')  -> as' |> List'.map (fun a -> Arith.fvs a |> List'.map (fun id -> {id with Id.ty = Type.TyInt})) |> List'.flatten
+    (* | LsPred (_, as', ls')-> 
+      let fvsa1 = as' |> List'.map (fun a -> Arith.fvs a) |> List'.flatten in
+      let (fvsa2, fvsl) = ls' |> List'.map (fun a -> Arith.lfvs a) |> List.unzip in
+      let (fvsa2, fvsl) = (List'.flatten fvsa2, List'.flatten fvsl) in
+      let fvsa = List'.append fvsa1 fvsa2 in
+      let fvsa = fvsa |> List'.map (fun id -> {id with Id.ty = Type.TyInt}) in
+      let fvsl = List'.map (fun id -> {id with Id.ty = Type.TyList}) in
+      List.append fvsa fvsl *) in 
   go hes |> Hflmc2_util.remove_duplicates (fun e x -> Id.eq e x) |> List.sort ~compare:(fun a b -> Int.compare a.id b.id)
 
 exception CannotNegate

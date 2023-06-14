@@ -20,7 +20,7 @@ type 'ty thflz2 =
   | Pred   of Formula.pred * 'ty T.tarith list
   [@@deriving eq,ord,show]
 
-type ptype2 = TInt | TBool | TFunc of (ptype2 * T.use_flag) list * ptype2 | TVar of unit Id.t
+type ptype2 = TInt | TBool | TList | TFunc of (ptype2 * T.use_flag) list * ptype2 | TVar of unit Id.t
   [@@deriving eq,ord]
 
 let show_list f ls = "[" ^ (List.map f ls |> String.concat "; ") ^ "]"
@@ -302,11 +302,13 @@ let rec convert_ty ty =
         let bodyty = convert_ty ty in
         TFunc (argtys, bodyty) *)
       | T.TInt -> failwith "convert_ty: TInt"
+      | T.TList -> failwith "convert_ty: TList"
     in
     go [] ty
   end
   | TBool -> TBool
   | TInt -> TInt
+  | TList -> TLIst
   | TVar _ -> assert false
 
 let to_thflz2 rules =

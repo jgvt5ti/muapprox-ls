@@ -11,6 +11,9 @@ let save_to_file file text =
 type 'ty tarith = 'ty Id.t Arith.gen_t
 [@@deriving eq,ord,show]
 
+type 'ty tlsarith = ('ty Id.t, 'ty Id.t) Arith.gen_lt
+[@@deriving eq,ord,show]
+
 type 'ty thflz =
   | Bool   of bool
   | Var    of 'ty Id.t
@@ -21,7 +24,9 @@ type 'ty thflz =
   | Exists of 'ty Id.t * 'ty thflz
   | App    of 'ty thflz * 'ty thflz
   | Arith  of 'ty tarith
+  | LsArith of 'ty tlsarith
   | Pred   of Formula.pred * 'ty tarith list
+  | LsPred of Formula.ls_pred * 'ty tarith list * 'ty tlsarith list
   [@@deriving eq,ord,show]
 
 type use_flag = TUse | TNotUse | EFVar of unit Hflmc2_syntax.Id.t
@@ -30,7 +35,7 @@ type use_flag = TUse | TNotUse | EFVar of unit Hflmc2_syntax.Id.t
 type fixpoint = Least | Greatest
 [@@deriving eq,ord,show]
 
-type ptype = TInt | TBool | TFunc of ptype * ptype * use_flag | TVar of unit Hflmc2_syntax.Id.t
+type ptype = TInt | TList | TBool | TFunc of ptype * ptype * use_flag | TVar of unit Hflmc2_syntax.Id.t
 [@@deriving eq,ord,show]
 
 type 'a in_out = {inner_ty: 'a; outer_ty: 'a}
@@ -65,6 +70,8 @@ let get_thflz_type_without_check phi =
     end
     | Pred (_, _) -> TBool
     | Arith _ -> TInt
+    | LsArith _ -> TList
+    | LsPred _ -> TBool
   in
   go phi
 
@@ -86,6 +93,8 @@ let rec pp_ptype prec ppf ty =
       Fmt.pf ppf "bool"
     | TInt ->
       Fmt.pf ppf "int"
+    | TList ->
+      Fmt.pf ppf "list"
     | TFunc (ty1, ty2, f) ->
       Print.show_paren (prec > Print.Prec.arrow) ppf "@[<1>[%a,%s] ->@ %a@]"
         (pp_ptype Print.Prec.(succ arrow)) ty1
@@ -99,6 +108,8 @@ let rec pp_ptype prec ppf ty =
       Fmt.pf ppf "bool"
     | TInt ->
       Fmt.pf ppf "int"
+    | TList ->
+      Fmt.pf ppf "list"
     | TFunc (ty1, ty2, f) ->
       Print.show_paren (prec > Print.Prec.arrow) ppf "@[<1>%a -%s->@ %a@]"
       (* Print.show_paren (prec > Print.Prec.arrow) ppf "@[<1>[%a,%s] ->@ %a@]" *)
@@ -225,13 +236,20 @@ module Print_temp = struct
       end
       | Arith a ->
         arith_ prec ppf a
+      (*  | LsArith a ->
+        ls_arith_ prec ppf a *)
       | Pred (pred', [f1; f2]) ->
           (* p_id ppf sid;  *)
           Fmt.pf ppf "@[<1>%a@ %a@ %a@]"
             (arith_ prec) f1
             pred pred'
             (arith_ prec) f2
-      | Pred _ -> assert false
+      (* | LsPred (pred', [], [f1;f2]) ->
+          Fmt.pf ppf "@[<1>%a@ %a@ %a@]"
+            (ls_arith_ prec) f1
+            ls_pred pred'
+            (ls_arith_ prec) f2 *)
+      | _ -> Fmt.string ppf "list"
 
   let hflz_ : ('pty thflz -> 'pty) -> ('pty -> string) -> (Prec.t -> 'ty Fmt.t) -> 'ty thflz Fmt.t =
     fun get_type show_flag format_ty_ -> hflz_ get_type show_flag format_ty_ Prec.zero

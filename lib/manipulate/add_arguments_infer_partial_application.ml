@@ -69,9 +69,22 @@ let get_thflz_type env phi =
         assert (ty = TInt);
       ) args;
       TBool
+    | LsPred (_, arga, argl) ->
+      List.iter (fun arg ->
+        let ty = go_arith env arg in
+        assert (ty = TInt);
+      ) arga;
+      List.iter (fun arg ->
+        let ty = go_ls_arith env arg in
+        assert (ty = TList);
+      ) argl;
+      TBool
     | Arith a ->
       assert (go_arith env a = TInt);
       TInt
+    | LsArith a ->
+      assert (go_ls_arith env a = TList);
+      TList
   and go_arith env a = match a with
     | Int _ -> TInt
     | Var v -> begin
@@ -87,6 +100,21 @@ let get_thflz_type env phi =
         assert (ty = TInt);
       ) args;
       TInt
+  and go_ls_arith env a = match a with
+    | Nil -> TList
+    | LVar v -> begin
+      match List.find_all (fun v' -> Id.eq v' v) env with
+      | [id'] ->
+        assert (id'.ty = TList);
+        TList
+      | _ -> assert false
+    end
+    | Cons (hd, tl) ->
+      let tyhd = go_arith env hd in
+      let tytl = go_ls_arith env tl in
+      assert (tyhd = TInt);
+      assert (tytl = TList);
+      TList
   in
   go env phi
 
@@ -107,6 +135,7 @@ let rec ty_to_ptype ty =
 and arg_to_ptype arg =
   match arg with
   | TyInt -> TInt
+  | TyList -> TList
   | TySigma ty -> ty_to_ptype ty
 
 let to_thflzs hes =
@@ -129,14 +158,24 @@ let to_thflzs hes =
       App (go p1, go p2)
     | Arith a ->
       Arith (go_arith a)
+    | LsArith a ->
+      LsArith (go_ls_arith a)
     | Pred (e, ps) ->
       Pred (e, List.map go_arith ps)
+    | LsPred (e, ps, ls) ->
+      LsPred (e, List.map go_arith ps, List.map go_ls_arith ls)
   and go_arith a = match a with
     | Int i -> Int i
     | Var v ->
       Var {v with ty=TInt}
     | Op (e, ps) ->
       Op (e, List.map go_arith ps)
+  and go_ls_arith a = match a with
+    | Nil -> Nil
+    | LVar v ->
+      LVar {v with ty=TList}
+    | Cons (hd, tl) ->
+      Cons (go_arith hd, go_ls_arith tl)
   in
   List.map
     (fun {Hflz.var; body; fix} ->
@@ -157,6 +196,7 @@ let generate_type_equal_constraint ty1 ty2 =
       (EF_Equal (flag1, flag2)) :: (go argty1 argty2) @ (go bodyty1 bodyty2)
     | TBool, TBool -> []
     | TInt, TInt -> []
+    | TList, TList -> []
     | _ -> assert false
   in
   go ty1 ty2
@@ -168,6 +208,7 @@ let rec assign_flags_to_type (ty : ptype) =
     TFunc (assign_flags_to_type tyarg, assign_flags_to_type tybody, EFVar (Id.gen ()))
   | TInt -> TInt
   | TBool -> TBool
+  | TList -> TList
   | TVar v -> TVar v
   
 let assign_flags (rules : ptype thes_rule list) : ptype thes_rule list =
@@ -181,7 +222,9 @@ let assign_flags (rules : ptype thes_rule list) : ptype thes_rule list =
     | Exists (x, p) -> Exists ({x with ty=assign_flags_to_type x.ty}, go p)
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith a
+    | LsArith a -> LsArith a
     | Pred (e, ps) -> Pred (e, ps)
+    | LsPred (e, ps, ls) -> LsPred (e, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->
@@ -244,6 +287,8 @@ let generate_flag_constraints rules =
           (ty, c)
         | Arith _ -> (TInt, [])
         | Pred _ -> (TBool, [])
+        | LsArith _ -> (TList, [])
+        | LsPred _ -> (TBool, [])
       in
       let c' =
         match apps with
@@ -293,6 +338,7 @@ let rec subst_flags_type ty subst =
   end
   | TBool -> TBool
   | TInt -> TInt
+  | TList -> TList
   | TVar _ -> assert false
 
 let subst_flags_program (rules : ptype thes_rule list) (subst : (unit Id.t * use_flag) list) : ptype thes_rule list =
@@ -307,6 +353,8 @@ let subst_flags_program (rules : ptype thes_rule list) (subst : (unit Id.t * use
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith a
     | Pred (op, ps) -> Pred (op, ps)
+    | LsArith a -> LsArith a
+    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->
@@ -327,6 +375,7 @@ let rec set_tag_in_undetermined_tags_ty ty to_set_tag =
   end
   | TBool -> TBool
   | TInt -> TInt
+  | TList -> TList
   | TVar _ -> assert false
     
 let set_tag_in_undetermined_tags rules to_set_tag =
@@ -341,6 +390,8 @@ let set_tag_in_undetermined_tags rules to_set_tag =
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith a
     | Pred (op, ps) -> Pred (op, ps)
+    | LsArith a -> LsArith a
+    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->
