@@ -16,6 +16,7 @@ let generate_type_equal_constraint ty1 ty2 =
       @ (go bodyty1 bodyty2)
     | TBool, TBool -> []
     | TInt, TInt -> []
+    | TList, TList -> []
     | _ -> assert false
   in
   go ty1 ty2
@@ -33,6 +34,7 @@ let rec assign_flags_to_type (ty : ptype2) =
       assign_flags_to_type tybody
     )
   | TInt -> TInt
+  | TList -> TList
   | TBool -> TBool
   | TVar v -> TVar v
 
@@ -48,6 +50,8 @@ let assign_flags (rules : ptype2 thes_rule list) : ptype2 thes_rule_in_out list 
     | App (p1, ps) -> App (go p1, List.map go ps)
     | Arith a -> Arith a
     | Pred (e, ps) -> Pred (e, ps)
+    | LsArith a -> LsArith a
+    | LsPred (e, ps, ls) -> LsPred (e, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->
@@ -184,6 +188,8 @@ let generate_flag_constraints
     end
     | Arith _ -> (TInt, [])
     | Pred _ -> (TBool, [])
+    | LsArith _ -> (TList, [])
+    | LsPred _ -> (TBool, [])
   in
   let global_env =
     List.map (fun {var_in_out; fix; _} -> (var_in_out, T.EFVar (Id.gen ()), fix)) rules in
@@ -222,6 +228,7 @@ let rec subst_flags_type ty subst =
   end
   | TBool -> TBool
   | TInt -> TInt
+  | TList -> TList
   | TVar _ -> assert false
   
 let subst_flags_program (rules : ptype2 thes_rule_in_out list) (subst : (unit Id.t * T.use_flag) list) : ptype2 thes_rule_in_out list =
@@ -236,6 +243,8 @@ let subst_flags_program (rules : ptype2 thes_rule_in_out list) (subst : (unit Id
     | App (p1, p2) -> App (go p1, List.map go p2)
     | Arith a -> Arith a
     | Pred (op, ps) -> Pred (op, ps)
+    | LsArith a -> LsArith a
+    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
   in
   List.map
     (fun {var_in_out; body; fix} ->
@@ -264,6 +273,7 @@ let rec set_tag_in_undetermined_tags_ty ty to_set_tag =
   end
   | TBool -> TBool
   | TInt -> TInt
+  | TList -> TList
   | TVar _ -> assert false
 
 let set_tag_in_undetermined_tags rules to_set_tag =
@@ -278,6 +288,8 @@ let set_tag_in_undetermined_tags rules to_set_tag =
     | App (p1, p2) -> App (go p1, List.map go p2)
     | Arith a -> Arith a
     | Pred (op, ps) -> Pred (op, ps)
+    | LsArith a -> LsArith a
+    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
   in
   List.map
     (fun {var_in_out; body; fix} ->

@@ -27,6 +27,8 @@ let eliminate_unused_universal_quantifiers_for_extra_arguments body =
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith a
     | Pred (p, b) -> Pred (p, b)
+    | LsArith a -> LsArith a
+    | LsPred (p, b, l) -> LsPred (p, b, l)
   in
   go body
 
