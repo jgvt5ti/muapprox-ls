@@ -30,6 +30,8 @@ let pp_pred = function
   | F.Ge -> ">="
   | F.Lt -> "<"
   | F.Gt -> ">"
+  | F.Eql -> "=l"
+  | F.Neql -> "<>l"
 ;;
 
 let rec pp_formula = function
@@ -41,8 +43,11 @@ let rec pp_formula = function
   | H.Abs (s, f) -> "\\" ^ s ^ "." ^ pp_formula f 
   | H.App (f1, f2) -> pp_formula f1 ^ " " ^ pp_formula f2
   | H.Int i -> if i < 0 then "(" ^ string_of_int i ^ ")" else string_of_int i
+  | H.Nil -> "[]"
+  | H.Cons (hd, tl) -> "(" ^ pp_formula hd ^ "::" ^ pp_formula tl ^")"
+  | H.Size ls -> "size " ^ pp_formula ls
   | H.Op (o, fs) -> "(" ^ (List.map pp_formula fs |> pp_list id ~sep:(pp_op o)) ^ ")"
-  | H.Pred (p, fs) -> List.map pp_formula fs |> pp_list id ~sep:(pp_pred p)
+  | H.Pred (p, fs, ls) -> List.map pp_formula fs |> pp_list id ~sep:(pp_pred p)
   | H.Forall (s, f) -> "∀ " ^ s ^ "." ^ pp_formula f
   | H.Exists (s, f) -> "∃" ^ s ^ "." ^ pp_formula f
 ;;

@@ -169,7 +169,7 @@ let trans_body automaton all_states max_priority global_env rule_args current_st
     | Bool b -> Hflz.Bool b
     | Or (p1, p2) -> Or (go_formula env p1, go_formula env p2)
     | And (p1, p2) -> And (go_formula env p1, go_formula env p2)
-    | Pred (p, ps) -> Pred (p, List.map (go_arith env) ps)
+    | Pred (p, ps) -> Pred (p, List.map (go_arith env) ps, [])
   and go_arith env phi = match phi with
     | Int i -> Arith.Int i
     | AVar v -> begin

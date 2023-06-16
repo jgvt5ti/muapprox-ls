@@ -64,7 +64,7 @@ let reorder_hflz body =
     | Exists (x, p) ->
       Exists (x, go p)
     | Arith a -> Arith a
-    | Pred (p, l) -> Pred (p, l)
+    | Pred (p, l, ls) -> Pred (p, l, ls)
   in
   go body
 

@@ -102,6 +102,8 @@ module Print_temp = struct
       | Ge  -> Fmt.string ppf ">="
       | Lt  -> Fmt.string ppf "<"
       | Gt  -> Fmt.string ppf ">"
+      | Eql  -> Fmt.string ppf "=l"
+      | Neql -> Fmt.string ppf "!=l"
   let pred_ : Formula.pred t_with_prec =
     ignore_prec pred
   
@@ -199,11 +201,17 @@ let abbrev_variable_names (hes : Type.simple_ty Hflz.hes): Type.simple_ty Hflz.h
     | Exists (x, p) -> Exists (abbrev_name_id x, go p)
     | App (p1, p2) -> App (go p1, go p2)
     | Arith p -> Arith (go_arith p)
-    | Pred (p, ps) -> Pred (p, List.map go_arith ps)
+    | LsExpr ls -> LsExpr (go_lsexpr ls)
+    | Pred (p, ps, ls) -> Pred (p, List.map go_arith ps, List.map go_lsexpr ls)
   and go_arith p = match p with
     | Arith.Int i -> Arith.Int i
     | Var v -> Var (abbrev_name_id v)
     | Op (e, ps) -> Op (e, List.map go_arith ps)
+    | Size ls -> Size (go_lsexpr ls)
+  and go_lsexpr p = match p with
+    | Nil -> Nil
+    | LVar v -> LVar (abbrev_name_id v)
+    | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
   in
   List.map (fun {Hflz.var; body; fix} ->
     let body = go body in
@@ -228,7 +236,7 @@ let assign_id_to_subterm hes =
     | Exists (x, p) -> Exists (gen (), x, go p)
     | App (p1, p2) -> App (gen (), go p1, go p2)
     | Arith (a) -> Arith (gen (), go_arith a)
-    | Pred (e, ps) -> Pred (gen (), e, List.map go_arith ps)
+    | Pred (e, ps, ls) -> Pred (gen (), e, List.map go_arith ps)
   and go_arith (phi : Arith.t) = match phi with
     | Int i -> Int (gen (), i)
     | Var v -> Var (gen (), v)
@@ -317,7 +325,7 @@ let remove_id_form_subterm (phi : Type.simple_ty thes_rules) =
     | Exists (_, x, p) -> Exists (x, go p)
     | App (_, p1, p2) -> App (go p1, go p2)
     | Arith (_, p) -> Arith (go_arith p)
-    | Pred (_, e, ps) -> Pred (e, List.map go_arith ps)
+    | Pred (_, e, ps) -> Pred (e, List.map go_arith ps, [])
   and go_arith (phi : tarith) =
     match phi with
     | Int (_, i) -> Int i

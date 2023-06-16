@@ -63,27 +63,21 @@ let get_thflz_type env phi =
       end
       | _ -> assert false
     end
-    | Pred (_, args) ->
-      List.iter (fun arg ->
-        let ty = go_arith env arg in
-        assert (ty = TInt);
-      ) args;
-      TBool
-    | LsPred (_, arga, argl) ->
+    | Pred (_, arga, argl) ->
       List.iter (fun arg ->
         let ty = go_arith env arg in
         assert (ty = TInt);
       ) arga;
       List.iter (fun arg ->
-        let ty = go_ls_arith env arg in
+        let ty = go_lsexpr env arg in
         assert (ty = TList);
       ) argl;
       TBool
     | Arith a ->
       assert (go_arith env a = TInt);
       TInt
-    | LsArith a ->
-      assert (go_ls_arith env a = TList);
+    | LsExpr a ->
+      assert (go_lsexpr env a = TList);
       TList
   and go_arith env a = match a with
     | Int _ -> TInt
@@ -100,7 +94,11 @@ let get_thflz_type env phi =
         assert (ty = TInt);
       ) args;
       TInt
-  and go_ls_arith env a = match a with
+    | Size l ->
+      let ty = go_lsexpr env l in
+      assert (ty = TList);
+      TList
+  and go_lsexpr env a = match a with
     | Nil -> TList
     | LVar v -> begin
       match List.find_all (fun v' -> Id.eq v' v) env with
@@ -111,7 +109,7 @@ let get_thflz_type env phi =
     end
     | Cons (hd, tl) ->
       let tyhd = go_arith env hd in
-      let tytl = go_ls_arith env tl in
+      let tytl = go_lsexpr env tl in
       assert (tyhd = TInt);
       assert (tytl = TList);
       TList
@@ -158,24 +156,23 @@ let to_thflzs hes =
       App (go p1, go p2)
     | Arith a ->
       Arith (go_arith a)
-    | LsArith a ->
-      LsArith (go_ls_arith a)
-    | Pred (e, ps) ->
-      Pred (e, List.map go_arith ps)
-    | LsPred (e, ps, ls) ->
-      LsPred (e, List.map go_arith ps, List.map go_ls_arith ls)
+    | LsExpr a ->
+      LsExpr (go_lsexpr a)
+    | Pred (e, ps, ls) ->
+      Pred (e, List.map go_arith ps, List.map go_lsexpr ls)
   and go_arith a = match a with
     | Int i -> Int i
     | Var v ->
       Var {v with ty=TInt}
     | Op (e, ps) ->
       Op (e, List.map go_arith ps)
-  and go_ls_arith a = match a with
+    | Size ls -> Size (go_lsexpr ls)
+  and go_lsexpr a = match a with
     | Nil -> Nil
     | LVar v ->
       LVar {v with ty=TList}
     | Cons (hd, tl) ->
-      Cons (go_arith hd, go_ls_arith tl)
+      Cons (go_arith hd, go_lsexpr tl)
   in
   List.map
     (fun {Hflz.var; body; fix} ->
@@ -222,9 +219,8 @@ let assign_flags (rules : ptype thes_rule list) : ptype thes_rule list =
     | Exists (x, p) -> Exists ({x with ty=assign_flags_to_type x.ty}, go p)
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith a
-    | LsArith a -> LsArith a
-    | Pred (e, ps) -> Pred (e, ps)
-    | LsPred (e, ps, ls) -> LsPred (e, ps, ls)
+    | LsExpr a -> LsExpr a
+    | Pred (e, ps, ls) -> Pred (e, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->
@@ -287,8 +283,7 @@ let generate_flag_constraints rules =
           (ty, c)
         | Arith _ -> (TInt, [])
         | Pred _ -> (TBool, [])
-        | LsArith _ -> (TList, [])
-        | LsPred _ -> (TBool, [])
+        | LsExpr _ -> (TList, [])
       in
       let c' =
         match apps with
@@ -352,9 +347,8 @@ let subst_flags_program (rules : ptype thes_rule list) (subst : (unit Id.t * use
     | Exists (x, p) -> Exists ({x with ty=subst_flags_type x.ty subst}, go p)
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith a
-    | Pred (op, ps) -> Pred (op, ps)
-    | LsArith a -> LsArith a
-    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
+    | LsExpr a -> LsExpr a
+    | Pred (op, ps, ls) -> Pred (op, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->
@@ -389,9 +383,8 @@ let set_tag_in_undetermined_tags rules to_set_tag =
     | Exists (x, p) -> Exists ({x with ty=set_tag_in_undetermined_tags_ty x.ty to_set_tag}, go p)
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith a
-    | Pred (op, ps) -> Pred (op, ps)
-    | LsArith a -> LsArith a
-    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
+    | LsExpr a -> LsExpr a
+    | Pred (op, ps, ls) -> Pred (op, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->

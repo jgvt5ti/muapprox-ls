@@ -73,7 +73,7 @@ module Print_temp = struct
           arith_ prec ppf a
       | Pred (pred, as') ->
           show_paren (prec > Prec.eq) ppf "%a"
-            formula (Formula.Pred(pred, as'))
+            formula (Formula.Pred(pred, as', []))
 
   let hflz : (Prec.t -> 'ty Fmt.t) -> 'ty thflz Fmt.t =
     fun format_ty_ -> hflz_ format_ty_ Prec.zero
@@ -166,7 +166,7 @@ let rec to_hflz expr =
   | Exists (x, p) -> Exists (x, to_hflz p)
   | App (p1, p2) -> App (to_hflz p1, to_hflz p2)
   | Arith a -> Arith a
-  | Pred (op, xs) -> Pred (op, xs)
+  | Pred (op, xs) -> Pred (op, xs, [])
 
 
 let extract_bound_predicates xs phi =
@@ -177,7 +177,7 @@ let extract_bound_predicates xs phi =
   let extract_pred p =
     print_endline @@ "B1:" ^ Print_syntax.show_hflz p;
     match p with
-    | Hflz.Pred (op, [Var x'; a]) when (op = Le || op = Lt) && List.exists (Id.eq x') xs -> begin
+    | Hflz.Pred (op, [Var x'; a], []) when (op = Le || op = Lt) && List.exists (Id.eq x') xs -> begin
       print_endline @@ "B2:" ^ Print_syntax.show_hflz (Arith a);
       match a with
       | Int _ -> Some (x', a)
@@ -551,7 +551,7 @@ let translate_hes (hes : Type.simple_ty Hflz.t * Type.simple_ty Hflz.hes_rule li
     | Exists (x, p) -> Exists (x, go_phi p)
     | App (p1, p2) -> App (go_phi p1, go_phi p2)
     | Arith a -> Arith a
-    | Pred (op, xs) -> Pred (op, xs)
+    | Pred (op, xs, ls) -> Pred (op, xs)
   in
   let (entry, rules) = hes in
   let rules = List.map (fun {Hflz.var; body; fix} -> {var; body = go_phi body; fix}) rules in

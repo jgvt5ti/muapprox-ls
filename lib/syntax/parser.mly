@@ -21,8 +21,7 @@ open Raw_hflz
 %token EQ "=" NEQ "<>" LE "<=" GE ">=" LT "<" GT ">"
 %token NOT "not" IMPLY "=>" IFF "<=>"
 %token AND "&&" OR "||"
-%token NIL "[]" CONS "::" EQL "=l" NEQL "<>l"
-%token LENGTH "len" NEGLENGTH "nlen"
+%token NIL "[]" CONS "::" EQL "=l" NEQL "<>l" SIZE "size"
 
 // unused
 %token COLON ":"
@@ -90,7 +89,7 @@ arith_expr:
 | "-" arith_expr %prec NEG { mk_op Arith.Sub [mk_int 0;$2] }
 
 app_expr:
-| size_pred atom atom { mk_sizepred $1 $2 $3}
+| "size" atom { mk_size $2}
 | atom atom* { mk_apps $1 $2 }
 
 atom:
@@ -124,10 +123,6 @@ pred:
 ls_pred:
 | "=l"  { Formula.Eql  }
 | "<>l" { Formula.Neql }
-
-size_pred:
-| "len"  { Formula.Len }
-| "nlen" { Formula.NLen }
 
 def_fixpoint:
 | "=v" { Fixpoint.Greatest }

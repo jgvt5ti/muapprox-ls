@@ -13,26 +13,26 @@ let convert_nu_hflz_to_program_with_exception ppf hes =
   let exn_name = "E" in
   let id ppf id =
     Fmt.pf ppf "%s" (Id.to_string id |> String.lowercase) in
-  let formula = gen_formula_ void_ (ignore_prec id) Prec.zero in
-  let arith_ prec ppf a = gen_arith_ (ignore_prec id) prec ppf a in
+  let formula = gen_formula_ void_ (ignore_prec id) (ignore_prec id) Prec.zero in
+  let arith_ prec ppf a = gen_arith_ (ignore_prec id) (ignore_prec id) prec ppf a in
   let rec go prec ppf phi = match phi with
     | Hflz.Bool true ->
       Fmt.string ppf "true"
     | Bool false ->
       show_paren (prec > Prec.app) ppf "%s"
         ("raise " ^ exn_name)
-    | Pred (pred, as') ->
+    | Pred (pred, as', ls) ->
       show_paren (prec > Prec.abs) ppf "@[<1>if@ %a@ then@ true@ else@ raise %s@]"
-        formula (Formula.Pred(pred, as'))
+        formula (Formula.Pred(pred, as', ls))
         exn_name
-    | And (Or ((Pred _) as p1, p2), Or ((Pred (pred, as')) as p1', p3)) when Stdlib.(=) p1 (Hflz.negate_formula p1') ->
+    | And (Or ((Pred _) as p1, p2), Or ((Pred (pred, as', ls)) as p1', p3)) when Stdlib.(=) p1 (Hflz.negate_formula p1') ->
       show_paren (prec > Prec.abs) ppf "@[<1>if@ %a@ then@ %a@ else@ %a@]"
-        formula (Formula.Pred(pred, as'))
+        formula (Formula.Pred(pred, as', ls))
         (go Prec.abs) p2
         (go Prec.abs) p3
-    | Or (And ((Pred (pred, as')) as p1, p2), And ((Pred _) as p1', p3)) when Stdlib.(=) p1 (Hflz.negate_formula p1') ->
+    | Or (And ((Pred (pred, as', ls')) as p1, p2), And ((Pred _) as p1', p3)) when Stdlib.(=) p1 (Hflz.negate_formula p1') ->
       show_paren (prec > Prec.abs) ppf "@[<1>if@ %a@ then@ %a@ else@ %a@]"
-        formula (Formula.Pred(pred, as'))
+        formula (Formula.Pred(pred, as', ls'))
         (go Prec.abs) p2
         (go Prec.abs) p3
     | Or (p1, p2) ->
@@ -76,8 +76,8 @@ let convert_nu_hflz_to_program_with_exception ppf hes =
         )
         ors in
     let fmt_formula ppf f = match f with
-      | Hflz.Pred (pred, as') ->
-        formula ppf (Formula.Pred(pred, as'))
+      | Hflz.Pred (pred, as', ls') ->
+        formula ppf (Formula.Pred(pred, as', ls'))
       | _ -> assert false
     in
     let format_sub a b =

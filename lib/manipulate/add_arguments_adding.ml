@@ -59,7 +59,7 @@ module Simplify = struct
     | Int of int
     | AddOp of 'a arith2 list
     | MulOp of 'a arith2 list
-    | Arith of 'a Id.t Arith.gen_t
+    | Arith of ('a Id.t, 'a Id.t) Arith.gen_t
 
   let rec show_arith2 a = match a with
     | Int i -> string_of_int i
@@ -205,7 +205,7 @@ module Simplify = struct
     () *)
 end
 
-type ptype' = TInt' | TBool' | TFunc' of ptype' * ptype'
+type ptype' = TInt' | TList' | TBool' | TFunc' of ptype' * ptype'
 [@@deriving eq,ord]
 
 let rec pp_ptype' prec ppf ty =
@@ -214,6 +214,8 @@ let rec pp_ptype' prec ppf ty =
     Fmt.pf ppf "bool"
   | TInt' ->
     Fmt.pf ppf "int"
+  | TList' ->
+    Fmt.pf ppf "list"
   | TFunc' (ty1, ty2) ->
     Print.show_paren (prec > Print.Prec.arrow) ppf "@[<1>%a ->@ %a@]"
       (pp_ptype' Print.Prec.(succ arrow)) ty1
@@ -236,8 +238,9 @@ let get_thflz_type_without_check' phi =
       | TFunc' (_, t2) -> t2
       | _ -> assert false
     end
-    | Pred (_, _) -> TBool'
+    | Pred (_, _, _) -> TBool'
     | Arith _ -> TInt'
+    | LsExpr _ -> TList'
   in
   go phi
 
@@ -275,6 +278,7 @@ let rec convert_ty' ty : ptype' = match ty with
   end
   | TBool -> TBool'
   | TInt -> TInt'
+  | TList -> TList'
   | TVar _ -> assert false
 
 let fold_formula f xs =
@@ -293,13 +297,13 @@ let make_bounds simplifier xs c1 c2 r =
     List.map
       (fun x ->
         (* r < (c1 * x) + c2, r < (-c1 * x) + c2 *)
-        [ T.Pred (Lt, [Var r; simplifier (Arith.Op (Add, [(Op (Mult, [Int c1; x])); Int c2])) |> Simplify.standarize]);
-          Pred (Lt, [Var r; simplifier (Op (Add, [(Op (Mult, [Int (-c1); x])); Int c2])) |> Simplify.standarize])]
+        [ T.Pred (Lt, [Var r; simplifier (Arith.Op (Add, [(Op (Mult, [Int c1; x])); Int c2])) |> Simplify.standarize], []);
+          Pred (Lt, [Var r; simplifier (Op (Add, [(Op (Mult, [Int (-c1); x])); Int c2])) |> Simplify.standarize], [])]
       )
       xs
     |> List.concat in
   let bounds = Hflmc2_util.remove_duplicates (=) bounds in
-  (bounds @ [T.Pred (Lt, [Var r; Int c2])]) |> fold_formula (fun acc f -> T.Or (acc, f))
+  (bounds @ [T.Pred (Lt, [Var r; Int c2], [])]) |> fold_formula (fun acc f -> T.Or (acc, f))
 
 (* check that a body of Abses has bool type *)
 let check_t1 rules =
@@ -329,6 +333,7 @@ let check_t1 rules =
       List.iter go ps
     | Arith _ -> ()
     | Pred _ -> ()
+    | LsExpr _ -> ()
   in
   List.map (fun {body; _} -> go body) rules
 
@@ -347,7 +352,7 @@ let get_free_variables_in_arith a =
 
 let make_bounds' simplifier (id_type_map : (unit Id.t, Hflz_util.variable_type, IdMap.Key.comparator_witness) Base.Map.t
 ref
-) (add_args : (ptype' Id.t Arith.gen_t list * int * int * ptype' Id.t) list) (body : ptype' T.thflz) : ptype' T.thflz =
+) (add_args : ((ptype' Id.t, ptype' Id.t) Arith.gen_t list * int * int * ptype' Id.t) list) (body : ptype' T.thflz) : ptype' T.thflz =
   let rec go = function
     | (xs, c1, c2, r)::add_args ->
       log_string @@ "make_bounds': " ^ Id.to_string r;
@@ -385,6 +390,7 @@ let make_bounds_if_body_is_bool simplifier id_type_map psi ty add_args =
     psi
   end
   | TInt' -> assert false
+  | TList' -> assert false
 
 let show_thflz' rules =
   List.map (fun (var, body, fix) ->
@@ -412,19 +418,32 @@ let get_occuring_arith_terms phi added_vars =
     | App (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
     | Arith (Int 0) -> [] (* ignore *)
     | Arith a -> [(a, get_occurring_arith_vars a)]
-    | Pred (Lt, [Var s; _]) when List.exists (fun v -> Id.eq v s) added_vars ->
+    | Pred (Lt, [Var s; _], []) when List.exists (fun v -> Id.eq v s) added_vars ->
       (* for added variables for ho-variables, add nothing *)
       []
-    | Pred (_, xs) ->
+    | Pred (_, xs, []) ->
       (* print_endline "get_occuring_arith_terms:";
       print_endline @@ show_pt_thflz phi; *)
       xs
       |> List.filter (fun a -> a <> Arith.Int 0)
       |> List.map (fun a -> (a, get_occurring_arith_vars a))
+    | LsExpr _ -> []
+    | Pred(_, xs, ls) ->
+      let v1 = xs
+        |> List.filter (fun a -> a <> Arith.Int 0)
+        |> List.map (fun a -> (a, get_occurring_arith_vars a)) in
+      let v2 = ls |> List.map (fun a -> (a, get_occurring_arith_vars2 a)) in
+      v1
   and get_occurring_arith_vars phi = match phi with
     | Int _ -> []
     | Var v -> [Id.remove_ty v]
     | Op (_, xs) -> List.map get_occurring_arith_vars xs |> List.concat
+  and get_occurring_arith_vars2 phi = match phi with
+    | Cons (hd, tl) -> 
+        let v1 = get_occurring_arith_vars hd in
+        let v2 = get_occurring_arith_vars2 tl in
+        List.append v1 v2
+    | _ -> []
   in
   go_hflz phi |> List.map fst
 
@@ -480,7 +499,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
   let rec go
       (global_env : (ptype2 Id.t * will_create_bound * ptype2) list)
       (rho : (ptype' Id.t * ptype' Id.t) list)
-      (phi : ptype2 thflz2) : ptype' T.thflz * ptype' * ((ptype' Id.t Arith.gen_t list * int * int * ptype' Id.t) list) = match phi with
+      (phi : ptype2 thflz2) : ptype' T.thflz * ptype' * (((ptype' Id.t, ptype' Id.t) Arith.gen_t list * int * int * ptype' Id.t) list) = match phi with
     | Abs (xs, psi, ty) -> begin
       let argty_tags, _ =
         match ty with
@@ -540,7 +559,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
       List.iter (fun ty2 -> print_endline @@ show_ptype' ty2) ty2s; *)
       if will_add then begin
         (* add arg *)
-        let xs : ptype' Id.t Arith.gen_t list =
+        let xs : (ptype' Id.t, ptype' Id.t) Arith.gen_t list =
           let fvs =
             List.filter_map
               (fun (p, (ty, tag)) ->
@@ -729,12 +748,17 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
       let p = make_bounds' simplifier id_type_map c1 p in
       Exists ({x with ty=convert_ty' x.ty}, p), TBool', []
     | Arith a -> Arith (go_arith a), TInt', []
-    | Pred (op, ps) -> Pred (op, List.map go_arith ps), TBool', []
+    | LsExpr a -> LsExpr (go_lsexpr a), TList', []
+    | Pred (op, ps, ls) -> Pred (op, List.map go_arith ps, List.map go_lsexpr ls), TBool', []
     | Bool b -> Bool b, TBool', []
   and go_arith a = match a with
     | Int i -> Int i
     | Var x -> Var {x with ty=TInt'}
     | Op (o, ps) -> Op (o, List.map go_arith ps)
+  and go_lsexpr a = match a with
+    | Nil -> Nil
+    | LVar x -> LVar {x with ty=TList'}
+    | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
   in
   let global_env = List.map (fun {var_in_out; fix; _} -> var_in_out, fix) rules in
   let rules =
@@ -767,8 +791,10 @@ let rec convert_ty ty = match ty with
     Type.TyArrow (x, convert_ty bodyty)
   | TBool' -> TyBool ()
   | TInt' -> failwith "cannot convert TInt'"
+  | TList' -> failwith "cannot convert TList'"
 and convert_argty ty = match ty with
   | TInt' -> Type.TyInt
+  | TList' -> Type.TyList
   | TFunc' _ | TBool' ->
     TySigma (convert_ty ty)
   
@@ -801,8 +827,10 @@ let to_hes (rules : (ptype' Id.t * ptype' T.thflz * T.fixpoint) list) =
       App (go p1, go p2)
     | Arith a ->
       Arith (go_arith a)
-    | Pred (p, ps) ->
-      Pred (p, List.map go_arith ps)
+    | LsExpr a ->
+      LsExpr (go_lsexpr a)
+    | Pred (p, ps, ls) ->
+      Pred (p, List.map go_arith ps, List.map go_lsexpr ls)
   and go_arith a = match a with
     | Int i -> Int i
     | Var x ->  
@@ -810,6 +838,13 @@ let to_hes (rules : (ptype' Id.t * ptype' T.thflz * T.fixpoint) list) =
       Var {x with ty=`Int}
     | Op (p, ps) ->
       Op (p, List.map go_arith ps)
+  and go_lsexpr a = match a with
+    | Nil -> Nil
+    | LVar x ->  
+      assert (x.ty = TList');
+      LVar {x with ty=`List}
+    | Cons (hd, tl) ->
+      Cons (go_arith hd, go_lsexpr tl)
   in
   List.map
     (fun (var, body, fix) ->

@@ -189,7 +189,7 @@ end
 let simple_partial_evaluate_hfl phi =
   let rec go phi = match phi with
     | Hflz.Arith a -> Hflz.Arith (Arith.simple_partial_evaluate a)
-    | Pred (p, xs) -> Pred (p, List.map Arith.simple_partial_evaluate xs)
+    | Pred (p, xs, ls) -> Pred (p, List.map Arith.simple_partial_evaluate xs, ls)
     | Var _ | Bool _ -> phi
     | Or (p1, p2) -> Or (go p1, go p2)
     | And(p1, p2) -> And(go p1, go p2)
@@ -207,7 +207,7 @@ let simple_partial_evaluate_hes hes =
 
 let evaluate_trivial_boolean phi =
   let rec go phi = match phi with
-    | Hflz.Pred (p, xs) -> begin
+    | Hflz.Pred (p, xs, _) -> begin
       match Formula.simplify_pred p xs with
       | Some b -> Hflz.Bool b
       | None -> phi
@@ -323,7 +323,7 @@ let%expect_test "InlineExpansition.optimize" =
     };{
       fix = Fixpoint.Greatest;
       var = nth 4;
-      body = Abs (id_n 401 TyInt, And (Pred (Eq, [Var (id_n 401 `Int); Int 5]), App (Var (nth 3), Arith (Int 6))))
+      body = Abs (id_n 401 TyInt, And (Pred (Eq, [Var (id_n 401 `Int); Int 5], []), App (Var (nth 3), Arith (Int 6))))
     }] in
   Hflz_typecheck.type_check (Bool true, org);
   ignore [%expect.output];
@@ -534,12 +534,12 @@ let eliminate_unused_bindings_sub phi =
       let (s2, p2) = go p2 in
       (IdSet.union s1 s2, App (p1, p2))
     | Arith a ->
-      let s = IdSet.of_list @@ List.map Id.remove_ty @@ Arith.fvs a in
+      let s = IdSet.of_list @@ List.map Id.remove_ty @@ (fst @@ Arith.fvs a) in
       (s, phi)
-    | Pred (_, as') ->
+    | Pred (_, as', __LOC_OF__) ->
       let s =
         IdSet.union_list @@ List.map (fun a ->
-          IdSet.of_list @@ List.map Id.remove_ty @@ Arith.fvs a
+          IdSet.of_list @@ List.map Id.remove_ty @@ (fst @@ Arith.fvs a)
         ) as' in
       (s, phi)
     in

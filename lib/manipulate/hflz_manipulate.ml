@@ -55,7 +55,7 @@ let argty_to_var {Id.name; id; ty} =
   | Type.TyInt -> 
     Arith (Var {name; id; ty=`Int})
   | Type.TyList -> 
-    LsArith (LVar {name; id; ty=`List})
+    LsExpr (LVar {name; id; ty=`List})
   | Type.TySigma x -> 
     Var {name; id; ty=x}
   
@@ -67,7 +67,7 @@ let formula_fold func terms = match terms with
 
 let make_approx_formula fa_var_f bounds = 
   bounds
-  |> List.map (fun bound -> Pred (Lt, [Var fa_var_f; bound]))
+  |> List.map (fun bound -> Pred (Lt, [Var fa_var_f; bound], []))
   |> formula_fold (fun acc f -> Or (acc, f))
 
 (* abstractioの順序を逆にする *)
@@ -93,7 +93,7 @@ let arg_id_to_var (x : 'ty Type.arg Id.t) =
   match x.Id.ty with
   | Type.TySigma t -> Var {x with ty=t}
   | Type.TyInt -> Arith (Var {x with ty=`Int})
-  | Type.TyList -> LsArith (LVar {x with ty=`List})
+  | Type.TyList -> LsExpr (LVar {x with ty=`List})
 
  (* : Type.simple_ty Type.arg Id.t list -> Type.simple_ty *)
 let args_ids_to_apps (ids : 'ty Type.arg Id.t list) : ('ty Hflz.t -> 'ty Hflz.t) = fun body ->
@@ -265,7 +265,7 @@ let get_occuring_arith_terms id_type_map phi =
     | Exists (x, p1) -> remove (go_hflz p1) x
     | App (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
     | Arith (a) -> [(a, get_occurring_arith_vars a)]
-    | Pred (p, xs) -> begin
+    | Pred (p, xs, _) -> begin
       match p, xs with
       | Lt, [Var x; _] when Hflmc2_syntax.IdMap.mem id_type_map (Id.remove_ty x) -> []
       | _ -> List.map (fun a -> (a, get_occurring_arith_vars a)) xs
@@ -380,7 +380,7 @@ let subst_arith_var replaced formula =
     | Exists (x, f1) -> Exists(x, go_formula f1)
     | App (f1, f2) -> App(go_formula f1, go_formula f2)
     | Arith t -> Arith (go_arith t)
-    | Pred (x, f1) -> Pred (x, List.map go_arith f1) in
+    | Pred (x, f1, f2) -> Pred (x, List.map go_arith f1, f2) in
   go_formula formula
 
 let rec to_tree seq f b = match seq with
@@ -530,7 +530,7 @@ let encode_body_exists_formula_sub
               ) in
           (terms1 @ terms2) |> formula_fold (fun acc f -> Or (acc, f))),
           bound_vars
-          |> List.map (fun var -> Pred (Ge, [Var {var with ty=`Int}; Int 0]))
+          |> List.map (fun var -> Pred (Ge, [Var {var with ty=`Int}; Int 0], []))
           |> formula_fold (fun acc f -> And (acc, f))
         )
     }]
@@ -561,7 +561,7 @@ let encode_body_exists_formula new_pred_name_cand coe1 coe2 hes_preds hfl id_typ
     end
     | App (f1, f2) -> App (go env hes_preds f1, go env hes_preds f2)
     | Arith t -> Arith t
-    | Pred (p, t) -> Pred (p, t) in
+    | Pred (p, t, l) -> Pred (p, t, l) in
   let hfl = go [] hes_preds hfl in
   hfl, !new_rules
 
@@ -703,7 +703,7 @@ let make_app new_fml rec_vars formula_type_terms guessed_conditions =
         Or (
           formula_fold
             (fun a b -> Or (a, b))
-            (List.map (fun cond -> Pred (Lt, [a_to_i temp_t_var; cond])) guessed_conditions),
+            (List.map (fun cond -> Pred (Lt, [a_to_i temp_t_var; cond], [])) guessed_conditions),
           to_app'
             (Arith (a_to_i temp_t_var))
             (Arith (
@@ -840,7 +840,7 @@ let replace_occurences
           (Core.List.cartesian_product
             (List.map (fun tvar -> Arith.Var{tvar with Id.ty=`Int}) new_tvars_lex)
             guessed_conditions)
-          |> List.map (fun (t1, t2) -> Pred (Lt, [t1; t2]))
+          |> List.map (fun (t1, t2) -> Pred (Lt, [t1; t2], []))
           |> formula_fold (fun acc t -> Or (acc, t))
           in
         (to_abs'
@@ -878,7 +878,7 @@ let remove_duplicate_bounds z3_path (phi : Type.simple_ty Hflz.t) =
     | Or (p1, p2) -> begin
       (* remove duplicate of the form "pred_1 || pred_2 || ... || pred_n" *)
       let rec sub phi = match phi with
-        | Pred (_, [_; _]) -> [phi]
+        | Pred (_, [_; _], _) -> [phi]
         | Or (p1, p2) -> begin
           let a1 = sub p1 in
           let a2 = sub p2 in
@@ -934,7 +934,7 @@ let remove_redundant_bounds id_type_map (phi : Type.simple_ty Hflz.t) =
     | Bool _ | Var _ | Arith _ | Pred _ -> phi
     | Or (p1, p2) -> begin
       let rec sub phi = match phi with
-        | Pred (_, [_; _]) -> [phi]
+        | Pred (_, [_; _], _) -> [phi]
         | Or (p1, p2) -> begin
           let a1 = sub p1 in
           let a2 = sub p2 in
@@ -951,7 +951,7 @@ let remove_redundant_bounds id_type_map (phi : Type.simple_ty Hflz.t) =
         let bounds =
           List.map 
             (fun bound -> match bound with
-              | Pred (Lt, [Var rec_v; rhs]) -> begin
+              | Pred (Lt, [Var rec_v; rhs], []) -> begin
                 let vs = get_occurring_variables_in_arith rhs in
                 match vs with
                 | [v] -> begin
@@ -961,11 +961,11 @@ let remove_redundant_bounds id_type_map (phi : Type.simple_ty Hflz.t) =
                     | Hflz_util.VTVarMax ariths -> begin
                       (* 整数変数のMAXを表す変数vの場合、vが集約している変数を直接利用する *)
                       match ariths with
-                      | [] -> [Pred (Lt, [Var rec_v; substitute_arith rhs (v, Int 0)])]
+                      | [] -> [Pred (Lt, [Var rec_v; substitute_arith rhs (v, Int 0)], [])]
                       | _ ->
                         List.map
                           (fun a ->
-                            Pred (Lt, [Var rec_v; substitute_arith rhs (v, a)])
+                            Pred (Lt, [Var rec_v; substitute_arith rhs (v, a)], [])
                           )
                           ariths
                     end
@@ -1051,7 +1051,7 @@ let elim_mu_with_rec (entry, rules) coe1 coe2 lexico_pair_number id_type_map use
               And (
                 List.map
                   (fun mytvar ->
-                    Pred (Gt, [Var {mytvar with ty=`Int}; Int 0])
+                    Pred (Gt, [Var {mytvar with ty=`Int}; Int 0], [])
                   )
                   mytvars |>
                 formula_fold
@@ -1194,7 +1194,7 @@ let encode_body_forall_formula new_pred_name_cand hes_preds hfl =
     | Exists (v, f1) -> Exists (v, go hes_preds f1)
     | App (f1, f2) -> App (go hes_preds f1, go hes_preds f2)
     | Arith t -> Arith t
-    | Pred (p, t) -> Pred (p, t) in
+    | Pred (p, t, ls) -> Pred (p, t, ls) in
   let hfl = go hes_preds hfl in
   hfl, !new_rules
 
@@ -1238,7 +1238,7 @@ let%expect_test "encode_body_forall_formula_sub" =
           ),
           Arith (Int 1)
         ),
-        Abs (id_n 41 TyInt, Pred (Eq, [Var (id_n 41 `Int); Int 2]))
+        Abs (id_n 41 TyInt, Pred (Eq, [Var (id_n 41 `Int); Int 2], []))
       )
      )
     ) in

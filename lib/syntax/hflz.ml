@@ -17,9 +17,8 @@ module Sugar = struct
     | Exists of 'ty arg Id.t * 'ty t
     | App    of 'ty t * 'ty t
     | Arith  of Arith.t
-    | LsArith of Arith.lt
-    | Pred   of Formula.pred * Arith.t list
-    | LsPred of Formula.ls_pred * Arith.t list * Arith.lt list
+    | LsExpr of Arith.lt
+    | Pred of Formula.pred * Arith.t list * Arith.lt list
     [@@deriving eq,ord,show,iter,map,fold,sexp]
 
   type 'ty hes_rule =
@@ -52,9 +51,8 @@ type 'ty t =
   | Exists of 'ty arg Id.t * 'ty t
   | App    of 'ty t * 'ty t
   | Arith  of Arith.t
-  | LsArith of Arith.lt
-  | Pred   of Formula.pred * Arith.t list
-  | LsPred of Formula.ls_pred * Arith.t list * Arith.lt list
+  | LsExpr of Arith.lt
+  | Pred of Formula.pred * Arith.t list * Arith.lt list
   [@@deriving eq,ord,show,iter,map,fold,sexp]
     
 type 'ty hes_rule =
@@ -81,7 +79,7 @@ let mk_ors = function
   | [] -> Bool false
   | x::xs -> List.fold_left xs ~init:x ~f:(fun a b -> Or(a,b))
 
-let mk_pred pred a1 a2 = Pred(pred, [a1;a2])
+let mk_pred pred a1 a2 = Pred(pred, [a1;a2], [])
 
 let mk_arith a = Arith a
 
@@ -109,10 +107,9 @@ let desugar_formula (formula : 'a Sugar.t) : 'a t =
     | And (f1, f2) -> Or  (neg f1, neg f2)
     | Forall (x, f) -> Exists (x, neg f)
     | Exists (x, f) -> Forall (x, neg f)
-    | Pred (p, args) -> Pred (Formula.negate_pred p, args)
-    | LsPred (p, arga, argl) -> LsPred (Formula.negate_ls_pred p, arga, argl)
+    | Pred (p, arga, argl) -> Pred (Formula.negate_pred p, arga, argl)
     | Arith _-> failwith "(negate_subformula) cannot negate Arith"
-    | LsArith _-> failwith "(negate_subformula) cannot negate LsArith"
+    | LsExpr _-> failwith "(negate_subformula) cannot negate LsExpr"
     | Var _  -> failwith "(negate_subformula) cannot negate Var"
     | Abs _  -> failwith "(negate_subformula) cannot negate Abs"
     | App _  -> failwith "(negate_subformula) cannot negate App"
@@ -127,9 +124,8 @@ let desugar_formula (formula : 'a Sugar.t) : 'a t =
     | Forall (x, phi1) -> Forall (x, thr phi1)
     | Exists (x, phi1) -> Exists (x, thr phi1)
     | Arith a          -> Arith a
-    | LsArith a        -> LsArith a
-    | Pred (x, as')    -> Pred (x, as')
-    | LsPred (x, as',ls') -> LsPred (x, as', ls')
+    | LsExpr a        -> LsExpr a
+    | Pred (x, as',ls') -> Pred (x, as', ls')
     | Not phi1         -> neg phi1 in
   thr formula
     
@@ -146,16 +142,15 @@ let rec fvs = function
   | Abs(x,phi)     -> IdSet.remove (fvs phi) x
   | Forall (x,phi) -> IdSet.remove (fvs phi) x
   | Exists (x,phi) -> IdSet.remove (fvs phi) x
-  | Arith a        -> IdSet.of_list @@ List.map ~f:Id.remove_ty @@ Arith.fvs a
-  | LsArith a      -> IdSet.of_list @@ Arith.lfvs_notype a
-  | Pred (_,as')   -> IdSet.union_list @@ List.map as' ~f:begin fun a ->
-                        IdSet.of_list @@ List.map ~f:Id.remove_ty @@ Arith.fvs a
-                      end
-  | LsPred(_,as', ls')  -> (*todo
-    let fva = List.map as' ~f:(Id.remove_ty @@ Arith.fvs a) in *)
-    IdSet.of_list @@ List.concat @@ List.map ls' ~f:Arith.lfvs_notype
+  | Arith a        -> IdSet.of_list @@ Arith.fvs_notype a
+  | LsExpr a       -> IdSet.of_list @@ Arith.lfvs_notype a
+  | Pred(_,as',ls')  ->
+    let fvs1 = List.concat @@ List.map as' ~f:Arith.fvs_notype in
+    let fvs2 = List.concat @@ List.map ls' ~f:Arith.lfvs_notype in
+    IdSet.of_list @@ List.append fvs1 fvs2
 
 
+ (* TODO *)
 let fvs_with_type : 'ty t -> 'ty Type.arg Id.t list = fun hes ->
   let rec go = function
     | Var x          -> [{ x with ty = Type.TySigma x.ty}]
@@ -166,9 +161,9 @@ let fvs_with_type : 'ty t -> 'ty Type.arg Id.t list = fun hes ->
     | Abs(x, phi)    -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi(* listだと、ここが毎回線形時間になる... *)
     | Forall(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
     | Exists(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
-    | Arith a        -> List'.map (fun id -> {id with Id.ty = Type.TyInt}) @@ Arith.fvs a
-    (* | LsArith a      -> List'.map (fun id -> {id with Id.ty = Type.TyList}) @@ Arith.lfvs a *)
-    | Pred (_, as')  -> as' |> List'.map (fun a -> Arith.fvs a |> List'.map (fun id -> {id with Id.ty = Type.TyInt})) |> List'.flatten
+    | Arith a        -> List'.map (fun id -> {id with Id.ty = Type.TyInt}) @@ Arith.fvs_notype a
+    (* | LsExpr a      -> List'.map (fun id -> {id with Id.ty = Type.TyList}) @@ Arith.lfvs a *)
+    | Pred (_, as', _)  -> as' |> List'.map (fun a -> Arith.fvs_notype a |> List'.map (fun id -> {id with Id.ty = Type.TyInt})) |> List'.flatten
     (* | LsPred (_, as', ls')-> 
       let fvsa1 = as' |> List'.map (fun a -> Arith.fvs a) |> List'.flatten in
       let (fvsa2, fvsl) = ls' |> List'.map (fun a -> Arith.lfvs a) |> List.unzip in
@@ -188,9 +183,8 @@ let is_negation_of f1 f2 =
     | And (f1, f2) -> Or  (neg f1, neg f2)
     | Forall (x, f) -> Exists (x, neg f)
     | Exists (x, f) -> Forall (x, neg f)
-    | Pred (p, args) -> Pred (Formula.negate_pred p, args)
-    | LsPred (p, arga, argl) -> LsPred (Formula.negate_ls_pred p, arga, argl)
-    | Arith _ | LsArith _ | Var _ | Abs _ | App _ -> raise CannotNegate in
+    | Pred (p, arga, argl) -> Pred (Formula.negate_pred p, arga, argl)
+    | Arith _ | LsExpr _ | Var _ | Abs _ | App _ -> raise CannotNegate in
   try
     neg f1 = f2
   with CannotNegate -> false
@@ -212,9 +206,8 @@ let negate_formula (formula : Type.simple_ty t) =
     | Forall (x, f) -> Exists (x, go f)
     | Exists (x, f) -> Forall (x, go f)
     | Arith (arith) -> Arith (arith)
-    | LsArith (ls)  -> LsArith (ls)
-    | Pred (p, args) -> Pred (Formula.negate_pred p, args)
-    | LsPred (p, arga, argl) -> LsPred (Formula.negate_ls_pred p, arga, argl) in
+    | LsExpr (ls)  -> LsExpr (ls)
+    | Pred (p, arga, argl) -> Pred (Formula.negate_pred p, arga, argl) in
   go formula
 
 let negate_rule ({var; body; fix} : Type.simple_ty hes_rule) = 
@@ -242,8 +235,7 @@ let ensure_no_mu_exists (hes : 'a hes) =
     | Exists _ -> false
     | App (f1, f2) -> no_exists f1 && no_exists f2
     | Arith _ -> true
-    | LsArith _ -> true
-    | Pred _ -> true
-    | LsPred _ -> true in
+    | LsExpr _ -> true
+    | Pred _ -> true in
   List.for_all ~f:(fun {body; fix; _} -> fix = Fixpoint.Greatest && no_exists body) ((mk_entry_rule (fst hes))::(snd hes))
   

@@ -47,7 +47,7 @@ let assign_serial_to_vars gen env (phi : Type.simple_ty Hflz.t) =
       Exists (gened_id, go env phi1)
     end
     | Arith (psi1) -> Arith (go_arith env psi1)
-    | Pred (p, psis) -> Pred (p, List.map (go_arith env) psis)
+    | Pred (p, psis, ls) -> Pred (p, List.map (go_arith env) psis, ls)
     | Bool _-> phi
     | Var v -> begin
       match find_id_opt v env with
@@ -105,7 +105,7 @@ let check_equal phi1 phi2 =
     | Forall (x1, phi1), Forall (x2, phi2) -> (set_path_if_false path (Id.eq x1 x2) "Forall") && (go (cp path "Forall" "_") phi1 phi2)
     | Exists (x1, phi1), Exists (x2, phi2) -> (set_path_if_false path (Id.eq x1 x2) "Exists") && (go (cp path "Exists" "_") phi1 phi2)
     | Arith psi1, Arith psi2 -> go_arith (cp path "Arith" "_") psi1 psi2
-    | Pred (p1, ariths1), Pred (p2, ariths2) ->
+    | Pred (p1, ariths1, _), Pred (p2, ariths2, _) ->
       set_path_if_false path (p1 = p2) "Pred" &&
       set_path_if_false path (List.length ariths1 = List.length ariths2) "Pred Args Length" &&
       agg_ariths path "Pred" ariths1 ariths2

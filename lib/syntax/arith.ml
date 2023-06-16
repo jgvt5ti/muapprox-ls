@@ -9,20 +9,21 @@ type op =
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
 (* arithmetic expresion parametrized by variable type *)
-type 'var gen_t =
+type ('avar, 'lvar) gen_t =
   | Int of int
-  | Var of 'var
-  | Op  of op * 'var gen_t list
+  | Var of 'avar
+  | Op  of op * ('avar, 'lvar) gen_t list
+  | Size of ('avar, 'lvar) gen_lt
   [@@deriving eq,ord,show,iter,map,fold,sexp]
-
-type t = [`Int] Id.t gen_t
-  [@@deriving eq,ord,show,iter,map,fold,sexp]
-
-type ('avar, 'lvar) gen_lt =
+and ('avar, 'lvar) gen_lt =
   | Nil
-  | Cons of 'avar gen_t * ('avar, 'lvar) gen_lt
+  | Cons of ('avar, 'lvar) gen_t * ('avar, 'lvar) gen_lt
   | LVar of 'lvar
   [@@deriving eq,ord,show,iter,map,fold,sexp]
+
+type t = ([`Int] Id.t, [`List] Id.t) gen_t
+  [@@deriving eq,ord,show,iter,map,fold,sexp]
+
 type lt = ([`Int] Id.t, [`List] Id.t) gen_lt
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
@@ -35,17 +36,40 @@ let mk_var' v    = Var v
 let mk_var v : t = Var({v with ty = `Int})
 let mk_lvar v : lt = LVar({v with ty = `List})
 
-let rec fvs : 'var gen_t -> 'var list = function
-  | Int _ -> []
-  | Var v -> [v]
-  | Op (_, as') -> List.concat_map as' ~f:fvs
 
-let rec lfvs : ('avar, 'lvar) gen_lt -> 'avar list * 'lvar list = function
+let rec fold_two_lists = function
+  | [] -> ([],[])
+  | (a1, a2)::xs ->
+  let (b1, b2) = fold_two_lists xs in
+  (List.append a1 b1, List.append a2 b2)
+
+let rec fvs : ('avar, 'lvar) gen_t -> 'avar list * 'lvar list = function
+  | Int _ -> [], []
+  | Var v -> [v], []
+  | Op (_, as') -> 
+    let v = List.map as' ~f:fvs in
+    fold_two_lists v
+  | Size ls -> lfvs ls
+and lfvs : ('avar, 'lvar) gen_lt -> 'avar list * 'lvar list = function
   | Nil -> [], []
   | Cons (hd, tl) -> 
-    let (avss, lvss) = lfvs tl in
-    List.append (fvs hd) avss, lvss
+    let (avs1, lvs1) = fvs hd in
+    let (avs2, lvs2) = lfvs tl in
+    (List.append avs1 avs2, List.append lvs1 lvs2)
   | LVar v -> [], [v]
+
+let fvs_of_ariths as' = 
+  let v = List.map as' ~f:fvs in
+    fold_two_lists v
+
+let fvs_of_lists as' = 
+  let v = List.map as' ~f:lfvs in
+    fold_two_lists v
+
+let fvs_notype t = 
+  let (vs1, vs2) = fvs t in
+  let (vs1, vs2) = (List.map ~f:Id.remove_ty vs1, List.map ~f:Id.remove_ty vs2) in
+  List.append vs1 vs2
 
 let lfvs_notype t = 
   let (vs1, vs2) = lfvs t in
@@ -158,6 +182,7 @@ let rec simple_partial_evaluate_ psi = match psi with
   end
   | Var x -> Var x
   | Int x -> Int x
+  | Size l -> Size l
 
 let simple_partial_evaluate psi =
   simple_partial_evaluate_ psi

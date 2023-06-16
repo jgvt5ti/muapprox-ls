@@ -440,7 +440,7 @@ let list_mult d xs =
   List.map (fun (o, ys) -> (o, aux d ys)) xs;;
 
 let div_norm = function
-    H.Pred (op, xs) ->
+    H.Pred (op, xs, []) ->
      let has_div = (function (Arith.Div, _) -> true | _ -> false) in
      let has_divider = List.exists has_div in
      let get_divider x = List.find has_div x |> snd in
@@ -469,6 +469,6 @@ let div_norm = function
            end
      in
      let xs' = List.map sum_list xs in
-     let r = H.Pred (op, List.map list_to_exp (aux xs' xs')) in
+     let r = H.Pred (op, List.map list_to_exp (aux xs' xs'), []) in
      r
   | f -> f;;

@@ -8,7 +8,7 @@ let save_to_file file text =
   output_string oc text;
   close_out oc
 
-type 'ty tarith = 'ty Id.t Arith.gen_t
+type 'ty tarith = ('ty Id.t, 'ty Id.t) Arith.gen_t
 [@@deriving eq,ord,show]
 
 type 'ty tlsarith = ('ty Id.t, 'ty Id.t) Arith.gen_lt
@@ -24,9 +24,8 @@ type 'ty thflz =
   | Exists of 'ty Id.t * 'ty thflz
   | App    of 'ty thflz * 'ty thflz
   | Arith  of 'ty tarith
-  | LsArith of 'ty tlsarith
-  | Pred   of Formula.pred * 'ty tarith list
-  | LsPred of Formula.ls_pred * 'ty tarith list * 'ty tlsarith list
+  | LsExpr of 'ty tlsarith
+  | Pred of Formula.pred * 'ty tarith list * 'ty tlsarith list
   [@@deriving eq,ord,show]
 
 type use_flag = TUse | TNotUse | EFVar of unit Hflmc2_syntax.Id.t
@@ -68,10 +67,9 @@ let get_thflz_type_without_check phi =
       | TFunc (_, t2, _) -> t2
       | _ -> assert false
     end
-    | Pred (_, _) -> TBool
+    | Pred _ -> TBool
     | Arith _ -> TInt
-    | LsArith _ -> TList
-    | LsPred _ -> TBool
+    | LsExpr _ -> TList
   in
   go phi
 
@@ -160,7 +158,7 @@ module Print_temp = struct
       | Op (_, _) -> show_op a
       
   let id_ (_prec : prec) (ppf : formatter) (x : 'pty Id.t) = id ppf x
-  let arith_ (prec : Prec.t) (ppf: formatter) (a : 'pty Id.t Arith.gen_t)
+  let arith_ (prec : Prec.t) (ppf: formatter) (a : ('pty Id.t, 'pty Id.t) Arith.gen_t)
     = gen_arith_ id_ prec ppf a
   
   let ptype_to_flag_string ty =
@@ -236,9 +234,9 @@ module Print_temp = struct
       end
       | Arith a ->
         arith_ prec ppf a
-      (*  | LsArith a ->
-        ls_arith_ prec ppf a *)
-      | Pred (pred', [f1; f2]) ->
+      (*  | LsExpr a ->
+        lsexpr_ prec ppf a *)
+      | Pred (pred', [f1; f2], []) ->
           (* p_id ppf sid;  *)
           Fmt.pf ppf "@[<1>%a@ %a@ %a@]"
             (arith_ prec) f1
@@ -246,9 +244,9 @@ module Print_temp = struct
             (arith_ prec) f2
       (* | LsPred (pred', [], [f1;f2]) ->
           Fmt.pf ppf "@[<1>%a@ %a@ %a@]"
-            (ls_arith_ prec) f1
+            (lsexpr_ prec) f1
             ls_pred pred'
-            (ls_arith_ prec) f2 *)
+            (lsexpr_ prec) f2 *)
       | _ -> Fmt.string ppf "list"
 
   let hflz_ : ('pty thflz -> 'pty) -> ('pty -> string) -> (Prec.t -> 'ty Fmt.t) -> 'ty thflz Fmt.t =
@@ -300,7 +298,7 @@ let get_free_variables phi =
     | Exists (x, p) -> List.filter (fun v -> not @@ Id.eq x v) (go p)
     | App (p1, p2) -> go p1 @ go p2
     | Arith a -> go_arith a
-    | Pred (_, ps) -> List.map go_arith ps |> List.concat
+    | Pred (_, ps, _) -> List.map go_arith ps |> List.concat
   and go_arith a = match a with
     | Int _ -> []
     | Var v -> [v]

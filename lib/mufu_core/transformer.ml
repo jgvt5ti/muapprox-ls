@@ -58,14 +58,14 @@ let is_unsat f =
 ;;
 
 let rec mk_ors = function
-    [] -> H.Pred (Formula.Eq, [H.Int 0; Int 1])
+    [] -> H.Pred (Formula.Eq, [H.Int 0; Int 1], [])
   | [f] -> f
   | f::fs ->
      H.Or (f, mk_ors fs)
 ;;
   
 let rec mk_ands = function
-    [] -> H.Pred (Formula.Eq, [H.Int 0; Int 0])
+    [] -> H.Pred (Formula.Eq, [H.Int 0; Int 0], [])
   | [f] -> f
   | f::fs ->
      H.And (f, mk_ands fs)
@@ -104,7 +104,7 @@ let rec is_in x f =
   | H.Int _ -> false
   | H.Op (_, f1) ->
      List.exists (fun f -> is_in x f) f1
-  | H.Pred (_, f1) ->
+  | H.Pred (_, f1, _) ->
      List.exists (fun f -> is_in x f) f1
   | H.Exists (s, f1) ->
      if s=x then false else is_in x f1
@@ -194,8 +194,8 @@ let ex_dist f =
   | H.Int _ -> f
   | H.Op (o, f1) ->
      H.Op (o, List.map ex_dist f1)
-  | H.Pred (p, f1) ->
-     H.Pred (p, List.map ex_dist f1)
+  | H.Pred (p, f1, f2) ->
+     H.Pred (p, List.map ex_dist f1, f2)
   | H.Exists (s, H.Or (f1, f2)) ->
      let f' = H.Or (build_exists s f1, build_exists s f2) in
      ex_dist f'
@@ -252,7 +252,7 @@ let taut_elim f =
   | H.Int _ -> f
   | H.Op (_, _) ->
      f
-  | H.Pred (_, _) ->
+  | H.Pred (_, _, _) ->
      f
   | H.Exists (s, f1) ->
      let f1' = taut_elim f1 in
@@ -373,8 +373,8 @@ let unfold_formula defs_map f =
     | H.Int _ -> f
     | H.Op (o, f1) ->
        H.mk_op o (List.map (unfold_formula defs_map ) f1)
-    | H.Pred (p, f1) ->
-       H.Pred (p, List.map (unfold_formula defs_map ) f1)
+    | H.Pred (p, f1, f2) ->
+       H.Pred (p, List.map (unfold_formula defs_map ) f1, f2)
     | H.Exists (s, f1) ->
        H.Exists (s, unfold_formula defs_map  f1)
     | H.Forall (s, f1) ->
@@ -401,8 +401,8 @@ let controlled_unfold_formula pred_set defs_map f =
     | H.Int _ -> f
     | H.Op (o, f1) ->
        H.mk_op o (List.map (unfold_formula defs_map ) f1)
-    | H.Pred (p, f1) ->
-       H.Pred (p, List.map (unfold_formula defs_map ) f1)
+    | H.Pred (p, f1, f2) ->
+       H.Pred (p, List.map (unfold_formula defs_map ) f1, f2)
     | H.Exists (s, f1) ->
        H.Exists (s, unfold_formula defs_map  f1)
     | H.Forall (s, f1) ->
@@ -429,8 +429,8 @@ let unfold_one_pred pred_name defs_map f =
     | H.Int _ -> f
     | H.Op (o, f1) ->
        H.mk_op o (List.map (unfold_formula defs_map ) f1)
-    | H.Pred (p, f1) ->
-       H.Pred (p, List.map (unfold_formula defs_map ) f1)
+    | H.Pred (p, f1, f2) ->
+       H.Pred (p, List.map (unfold_formula defs_map ) f1, f2)
     | H.Exists (s, f1) ->
        H.Exists (s, unfold_formula defs_map  f1)
     | H.Forall (s, f1) ->
@@ -444,7 +444,7 @@ let preds_eq pred1 pred2 =
   try
     let (p1, args1) = U.explode_pred pred1 in
     let (p2, args2) = U.explode_pred pred2 in
-    p1 = p2 && List.for_all (fun (a,b) -> is_taut (H.Pred (Formula.Eq, [a;b]))) (List.combine args1 args2)
+    p1 = p2 && List.for_all (fun (a,b) -> is_taut (H.Pred (Formula.Eq, [a;b], []))) (List.combine args1 args2)
   with
     _ -> false
 ;;
@@ -466,8 +466,8 @@ let unfold_pred pred defs_map f =
     | H.Int _ -> f
     | H.Op (o, f1) ->
        H.mk_op o (List.map (unfold_formula defs_map ) f1)
-    | H.Pred (p, f1) ->
-       H.Pred (p, List.map (unfold_formula defs_map ) f1)
+    | H.Pred (p, f1, f2) ->
+       H.Pred (p, List.map (unfold_formula defs_map ) f1, f2)
     | H.Exists (s, f1) ->
        H.Exists (s, unfold_formula defs_map  f1)
     | H.Forall (s, f1) ->
@@ -521,7 +521,7 @@ let rec fv f =
   | H.Int _ -> []
   | H.Op (_, f1) ->
      List.map fv f1 |> List.concat
-  | H.Pred (_, f1) ->
+  | H.Pred (_, f1, _) ->
      List.map fv f1 |> List.concat
   | H.Exists (s, f1) ->
      fv f1 |> (subtract s)
@@ -647,7 +647,7 @@ let rec list_to_and = function
 
 let get_value x f =
   match f with
-    H.Pred (Formula.Eq, a::b::_) ->
+    H.Pred (Formula.Eq, a::b::_, []) ->
      begin
        let (c1,d1) = AP.cx_d x a in
        let (c2,d2) = AP.cx_d x b in
@@ -686,7 +686,7 @@ let combine_res = List.hd
 let rec find_constraint x f =
   let conjs = conj_to_list f in
   
-  let constraints, nonconstraints = List.partition (function H.Pred (Formula.Eq, _) as c -> List.mem x (U.fv c) | _ -> false) conjs in
+  let constraints, nonconstraints = List.partition (function H.Pred (Formula.Eq, _, _) as c -> List.mem x (U.fv c) | _ -> false) conjs in
   match constraints with
     [] -> f, false
   | _ ->
@@ -797,7 +797,7 @@ let rec auto_rename = function
   | H.Abs (s, f) -> H.Abs (s, auto_rename f)
   | H.App (f1, f2) -> H.App (auto_rename f1, auto_rename f2)
   | H.Op (o, fs) -> H.Op (o, List.map auto_rename fs)
-  | H.Pred (o, fs) -> H.Pred (o, List.map auto_rename fs)
+  | H.Pred (o, fs, ls) -> H.Pred (o, List.map auto_rename fs, ls)
   | H.Forall (s, f) -> H.Forall (s, auto_rename f)
   | H.Exists (s, f) -> H.Exists (s, auto_rename f)
   | H.Int _ as f -> f
@@ -1022,14 +1022,14 @@ let get_times_of_unfold orig_formula target_formula =
           List.map (fun (a, _, d) ->
               let aa = auto_rename a in
               let a'_md = (H.Op (Arith.Add, [a;d])) |> AP.normalize in
-              H.Pred (Formula.Eq, [aa;a'_md])
+              H.Pred (Formula.Eq, [aa;a'_md], [])
             ) multiplied_deltas
         in
         (((pred_name, org_args), multiplier), constraints)
       ) pred_args_pred'args' in
   let pred_ms, all_constraints = List.split all_ms_constraints in
   let ms = List.map snd pred_ms in 
-  let gen_cons = H.Pred (Formula.Gt, [H.Op (Arith.Add, List.map H.mk_var ms); H.Int 0]) in
+  let gen_cons = H.Pred (Formula.Gt, [H.Op (Arith.Add, List.map H.mk_var ms); H.Int 0], []) in
   
   match List.concat all_constraints with
     [] -> []
@@ -1399,7 +1399,7 @@ let get_optimized_constraints defs_map f (deltas : (int * 'a) D.t) =
       let c_hd = List.hd cs in
       let c_tl = List.tl cs in
       let mk_a_constraint (delta1, n_p1, c1) (delta2, n_p2, c2) =
-        [H.Pred (Formula.Eq, [H.Op (Arith.Mult, [H.Int delta1; n_p1; c2]); H.Op (Arith.Mult, [H.Int delta2; n_p2; c1])])]
+        [H.Pred (Formula.Eq, [H.Op (Arith.Mult, [H.Int delta1; n_p1; c2]); H.Op (Arith.Mult, [H.Int delta2; n_p2; c1])], [])]
       in
       cons @ List.map (mk_a_constraint c_hd) c_tl
   in
@@ -1430,7 +1430,7 @@ let get_optimized_constraints defs_map f (deltas : (int * 'a) D.t) =
 
 let get_general_constraints f =
   let preds_f = get_predicates f in
-  H.Pred (Formula.Eq, [H.Int 0;H.Int 0]),[],[],D.empty
+  H.Pred (Formula.Eq, [H.Int 0;H.Int 0], []),[],[],D.empty
 ;;
 
 let get_constraints defs_map f (deltas : (int * 'a) D.t) =
@@ -1582,7 +1582,7 @@ let is_unfolding_candidate transformer splitter joiner goal defs_map f deltas (s
               []
           in
           let last_arg = H.Op (Arith.Add, [mid_arg; H.Op (Arith.Mult, [n; H.Int unit_delta])]) in (** mid_arg + Ni * unit_dist *)
-          let constraint' = H.Pred (Formula.Eq, [arg''; last_arg]) in 
+          let constraint' = H.Pred (Formula.Eq, [arg''; last_arg], []) in 
           (constraint', mod_constraint)
         ) mid_arg_deltas
     in
@@ -1846,7 +1846,7 @@ let rec no_const = function
     H.Var _ -> true
   | H.Int _ -> false
   | H.App (f1, f2) -> no_const f1 && no_const f2
-  | H.Pred (_, fs) -> List.for_all no_const fs
+  | H.Pred (_, fs, _) -> List.for_all no_const fs
   | H.Abs (_, fs) -> no_const fs
   | H.Op (_, fs) -> List.exists no_const fs
   | H.Exists (_, f) -> no_const f

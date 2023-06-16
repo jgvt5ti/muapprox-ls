@@ -14,12 +14,18 @@ let convert_hflz without_id phi =
     | H.App (p1, p2) -> R.App (go p1, go p2)
     | H.Forall (x, p) -> R.Forall (to_string x, go p)
     | H.Exists (x, p) -> R.Exists (to_string x, go p)
-    | H.Pred (p, xs) -> R.Pred (p, List.map go_arith xs)
+    | H.Pred (p, xs, ls) -> R.Pred (p, List.map go_arith xs, List.map go_lsexpr ls)
     | H.Arith a -> go_arith a
+    | H.LsExpr a -> go_lsexpr a
   and go_arith a = match a with
     | A.Int i -> R.Int i
     | A.Op (op, xs) -> R.Op (op, List.map go_arith xs)
     | A.Var v -> R.Var (to_string v)
+    | A.Size ls -> R.Size (go_lsexpr ls)
+  and go_lsexpr a = match a with
+    | A.Nil -> R.Nil
+    | A.Cons (hd, tl) -> R.Cons (go_arith hd, go_lsexpr tl)
+    | A.LVar v -> R.Var (to_string v)
   in
   go phi
     

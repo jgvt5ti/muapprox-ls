@@ -53,13 +53,10 @@ let rec hflz_ : (Prec.t -> 'ty Fmt.t) -> Prec.t -> 'ty Hflz.t Fmt.t =
           (hflz_ format_ty_ Prec.app) psi1
           (hflz_ format_ty_ Prec.(succ app)) psi2
     | Arith a -> arith_ prec ppf a
-    | LsArith a -> ls_arith_ prec ppf a
-    | Pred (pred, as') ->
+    | LsExpr a -> lsexpr_ prec ppf a
+    | Pred (pred, as', ls') ->
         show_paren (prec > Prec.eq) ppf "%a"
-          formula (Formula.Pred(pred, as'))
-    | LsPred (pred, as', ls') ->
-        show_paren (prec > Prec.eq) ppf "%a"
-          formula (Formula.LsPred(pred, as', ls'))
+          formula (Formula.Pred(pred, as', ls'))
 
 let hflz : (Prec.t -> 'ty Fmt.t) -> 'ty Hflz.t Fmt.t =
   fun format_ty_ -> hflz_ format_ty_ Prec.zero
@@ -102,13 +99,13 @@ module PrintUtil = struct
     fun without_id _prec ppf x -> Fmt.pf ppf "%s" (replace_apos @@ Id.to_string ~without_id:without_id x)
     
   let arith_  =
-    fun without_id prec ppf a -> gen_arith_ (id___' without_id) prec ppf a
+    fun without_id prec ppf a -> gen_arith_ (id___' without_id) (id___' without_id) prec ppf a
 
-  let ls_arith_  =
-    fun without_id prec ppf a -> gen_ls_arith_ (id___' without_id) prec ppf a
+  let lsexpr_  =
+    fun without_id prec ppf a -> gen_lsexpr_ (id___' without_id) (id___' without_id) prec ppf a
 
   let formula_ : bool -> Formula.t t_with_prec = fun without_id ->
-    gen_formula_ void_ (id___' without_id)
+    gen_formula_ void_ (id___' without_id) (id___' without_id)
   let formula : bool -> Formula.t Fmt.t = fun without_id ->
     formula_ without_id Prec.zero
     
@@ -121,38 +118,40 @@ module FptProverHes = struct
   let rec gen_formula_
       :  'bvar t_with_prec
       -> 'avar t_with_prec
+      -> 'lvar t_with_prec
       -> ('bvar, 'avar, 'lvar) Formula.gen_t t_with_prec =
-    fun bvar avar prec ppf f -> match f with
+    fun bvar avar lvar prec ppf f -> match f with
       | Var x      -> bvar prec ppf x
       | Bool true  -> Fmt.string ppf "true"
       | Bool false -> Fmt.string ppf "false"
       | Or fs ->
           let sep ppf () = Fmt.pf ppf "@ \\/ " in
           show_paren (prec > Prec.or_) ppf "@[<hv 0>%a@]"
-            (list ~sep (gen_formula_ bvar avar Prec.or_)) fs
+            (list ~sep (gen_formula_ bvar avar lvar Prec.or_)) fs
       | And fs ->
           let sep ppf () = Fmt.pf ppf "@ /\\ " in
           show_paren (prec > Prec.and_) ppf "@[<hv 0>%a@]"
-            (list ~sep (gen_formula_ bvar avar Prec.and_)) fs
-      | Pred(pred',[f1;f2]) ->
+            (list ~sep (gen_formula_ bvar avar lvar Prec.and_)) fs
+      | Pred(pred',[f1;f2], []) ->
           Fmt.pf ppf "@[<1>%a@ %a@ %a@]"
-            (gen_arith_ avar prec) f1
+            (gen_arith_ avar lvar prec) f1
             pred pred'
-            (gen_arith_ avar prec) f2
-      | LsPred(pred', [], [f1;f2]) ->
+            (gen_arith_ avar lvar prec) f2
+      | Pred(pred', [], [f1;f2]) ->
           Fmt.pf ppf "@[<1>%a@ %a@ %a@]"
-            (gen_ls_arith_ avar prec) f1
-            ls_pred pred'
-            (gen_ls_arith_ avar prec) f2
+            (gen_lsexpr_ avar lvar prec) f1
+            pred pred'
+            (gen_lsexpr_ avar lvar prec) f2
       |  _ -> assert false
   let gen_formula
       :  'bvar t_with_prec
       -> 'avar t_with_prec
+      -> 'lvar t_with_prec
       -> ('bvar, 'avar, 'lvar) Formula.gen_t t =
-    fun bvar avar ppf f ->
-      gen_formula_ bvar avar Prec.zero ppf f
+    fun bvar avar lvar ppf f ->
+      gen_formula_ bvar avar lvar Prec.zero ppf f
   let formula_ : Formula.t t_with_prec =
-    gen_formula_ void_ id_
+    gen_formula_ void_ id_ lid_
   let formula : Formula.t Fmt.t =
     formula_ Prec.zero
 
@@ -193,14 +192,11 @@ module FptProverHes = struct
             (go_ Prec.(succ app)) psi2
       | Arith a ->
           (arith_ false) prec ppf a
-      | LsArith a ->
-          (ls_arith_ false) prec ppf a
-      | Pred (pred, as') ->
+      | LsExpr a ->
+          (lsexpr_ false) prec ppf a
+      | Pred (pred, as', ls') ->
           show_paren (prec > Prec.eq) ppf "%a"
-            formula (Formula.Pred(pred, as'))
-      | LsPred (pred, as', ls') ->
-          show_paren (prec > Prec.eq) ppf "%a"
-            formula (Formula.LsPred(pred, as', ls'))
+            formula (Formula.Pred(pred, as', ls'))
     in go_
   
   let hflz' : 'ty Hflz.t Fmt.t = hflz_' Prec.zero
@@ -296,14 +292,11 @@ module MachineReadable = struct
             (go_ Prec.(succ app)) psi2
       | Arith a ->
           arith_ without_id prec ppf a
-      | LsArith a ->
-          ls_arith_ without_id prec ppf a
-      | Pred (pred, as') ->
+      | LsExpr a ->
+          lsexpr_ without_id prec ppf a
+      | Pred (pred, as', ls') ->
           show_paren (prec > Prec.eq) ppf "%a"
-            (formula without_id) (Formula.Pred(pred, as'))
-      | LsPred (pred, as', ls') ->
-          show_paren (prec > Prec.eq) ppf "%a"
-            (formula without_id) (Formula.LsPred(pred, as', ls'))
+            (formula without_id) (Formula.Pred(pred, as', ls'))
     in go_
 
   let hflz' : (Prec.t -> 'ty Fmt.t) -> bool -> bool -> 'ty Hflz.t Fmt.t =
@@ -394,14 +387,11 @@ module AsProgram = struct
             (go_ int_env Prec.(succ app)) psi2
       | Arith a ->
           arith_ without_id prec ppf a
-      | LsArith a ->
-          ls_arith_ without_id prec ppf a
-      | Pred (pred, as') ->
+      | LsExpr a ->
+          lsexpr_ without_id prec ppf a
+      | Pred (pred, as', ls') ->
           show_paren (prec > Prec.eq) ppf "%a"
-            (formula without_id) (Formula.Pred(pred, as'))
-      | LsPred (pred, as', ls') ->
-          show_paren (prec > Prec.eq) ppf "%a"
-            (formula without_id) (Formula.LsPred(pred, as', ls'))
+            (formula without_id) (Formula.Pred(pred, as', ls'))
     in go_ []
 
   let hflz' : (Prec.t -> 'ty Fmt.t) -> bool -> bool -> 'ty Hflz.t Fmt.t =

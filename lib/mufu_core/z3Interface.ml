@@ -85,7 +85,7 @@ let rec pred_to_z3 ctx bounds = function
      Boolean.mk_false ctx
   | H.App _ as f ->
      app_to_z3 ctx [] bounds f
-  | H.Pred (op, f1::f2::_) ->
+  | H.Pred (op, f1::f2::_, []) ->
      begin
        let f1' = arith_to_z3 ctx bounds f1 in
        let f2' = arith_to_z3 ctx bounds f2 in
@@ -316,7 +316,7 @@ let solve_model_s ms gen fs =
       model
     end
   else
-    let fs' = List.map (fun (s,i) -> H.Pred (Formula.Eq, [H.Var s; H.Int i])) model in
+    let fs' = List.map (fun (s,i) -> H.Pred (Formula.Eq, [H.Var s; H.Int i], [])) model in
     let all = fs' @ fs in
     match all with
       [] -> []

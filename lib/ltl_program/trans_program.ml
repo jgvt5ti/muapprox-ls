@@ -94,7 +94,7 @@ let to_hflz_from_function program func_names =
       Op (op, [go_arith arg1; go_arith arg2])
     | AOp _ -> failwith "to_hflz: go_arith"
   and go_predicate p : 'a Hflz.t = match p with
-    | Pred (op, [arg1; arg2]) -> Pred (op, [go_arith arg1; go_arith arg2])
+    | Pred (op, [arg1; arg2]) -> Pred (op, [go_arith arg1; go_arith arg2], [])
     | Pred _ -> failwith "to_hflz: go_predicate"
     | And (p1, p2) -> And (go_predicate p1, go_predicate p2)
     | Or (p1, p2) -> Or (go_predicate p1, go_predicate p2)

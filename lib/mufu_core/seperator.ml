@@ -5,8 +5,8 @@ let get_preds =
   let rec aux res = function
     | H.App (H.Var s, _) ->
        s::res
-    | H.Pred (_, hflzs) ->
-       List.fold_left aux res hflzs
+    | H.Pred (_, hflzs1, hflzs2) ->
+       List.fold_left aux res (List.append hflzs1 hflzs2)
     | H.And (hflz1, hflz2) 
       | H.Or (hflz1, hflz2)
       | H.App (hflz1, hflz2) ->

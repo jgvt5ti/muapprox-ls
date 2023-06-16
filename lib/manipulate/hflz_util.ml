@@ -74,7 +74,7 @@ let get_hflz_type phi =
       | TyArrow (x, ty1') -> begin
         (match x.ty with
         | TyInt -> (match f2 with Arith _ -> () | _ -> failwith @@ "Illegal type (App, Arrow) (ty1=TyInt, ty2=(not integet expression)) (expression: " ^ show_hflz phi ^ ")")
-        | TyList -> (match f2 with LsArith _ -> () | _ -> failwith @@ "Illegal type (App, Arrow) (ty1=TyList, ty2=(not integet expression)) (expression: " ^ show_hflz phi ^ ")")
+        | TyList -> (match f2 with LsExpr _ -> () | _ -> failwith @@ "Illegal type (App, Arrow) (ty1=TyList, ty2=(not integet expression)) (expression: " ^ show_hflz phi ^ ")")
         | TySigma t -> (
           let sty2 = go f2 in
           if not @@ eq_modulo_arg_ids t sty2 then (
@@ -89,8 +89,7 @@ let get_hflz_type phi =
     end
     | Pred _ -> TyBool ()
     | Arith _ -> failwith "Illegal type (Arith)"
-    | LsPred _ -> TyBool ()
-    | LsArith _ -> failwith "Illegal type (LsArith)"
+    | LsExpr _ -> failwith "Illegal type (LsExpr)"
   in
   go phi
 
@@ -130,7 +129,7 @@ let assign_unique_variable_id_sub id_change_map env phi =
       Exists (x', go ((Id.remove_ty x, x') :: env) p)
     | App (p1, p2) -> App (go env p1, go env p2)
     | Arith a -> Arith (go_arith env a)
-    | Pred (e, ps) -> Pred (e, List.map (go_arith env) ps)
+    | Pred (e, ps, ls) -> Pred (e, List.map (go_arith env) ps, ls)
   and go_arith env a = match a with
     | Int i -> Int i
     | Var v -> begin
@@ -355,7 +354,7 @@ let get_hflz_size_sub phi =
     | Exists (_, p) -> go p + 1
     | App (p1, p2) -> go p1 + go p2 + 1
     | Arith a -> go_arith a
-    | Pred (_, as') -> (List.map go_arith as' |> sum) + 1
+    | Pred (_, as', ls') -> (List.map go_arith as' |> sum) + 1
   and go_arith a = match a with
     | Var _ | Int _ -> 1
     | Op (_, as') -> (List.map go_arith as' |> sum) + 1
@@ -376,7 +375,7 @@ let extract_bound_predicates x phi =
   in
   let extract_pred p =
     match p with
-    | Hflz.Pred (op, [Var x'; a]) when (op = Le || op = Lt) && Id.eq x' x -> begin
+    | Hflz.Pred (op, [Var x'; a], []) when (op = Le || op = Lt) && Id.eq x' x -> begin
       match a with
       | Int _ -> Some a
       | Op (Add, [Op (Mult, [n; f]); Int _]) | Op (Add, [Int _; Op (Mult, [n; f])]) -> begin

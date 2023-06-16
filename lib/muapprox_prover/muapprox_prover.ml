@@ -628,8 +628,7 @@ let fold_hflz folder phi init =
     | Hflz.App (f1, f2)   -> folder acc phi |> go f1 |> go f2
     | Hflz.Arith _ -> folder acc phi
     | Hflz.Pred _ -> folder acc phi
-    | Hflz.LsArith _ -> folder acc phi
-    | Hflz.LsPred _ -> folder acc phi in
+    | Hflz.LsExpr _ -> folder acc phi in
   go phi init
 
 let is_onlyforall_body formula =
@@ -672,7 +671,7 @@ let is_nu_only_tractable hes =
 let count_exists (entry, rules) =
   let rec go phi = match phi with
     | Hflz.Exists (_, p) -> 1 + go p
-    | Var _ | Arith _ | Pred _ | Bool _ -> 0
+    | Var _ | Arith _ | Pred _ | LsExpr _ | Bool _ -> 0
     | Forall (_, p) -> go p
     | App (p1, p2) -> go p1 + go p2
     | And (p1, p2) -> go p1 + go p2
@@ -721,7 +720,7 @@ let count_occuring (*id_type_map:(unit Hflmc2_syntax.Id.t, Manipulate.Hflz_util.
         | None -> 0 in *)
       c + (go p)
     end
-    | Bool _ | Var _ | Arith _ | Pred _ -> 0
+    | Bool _ | Var _ | Arith _ | Pred _ | LsExpr _ -> 0
     | Or (p1, p2) -> go p1 + go p2
     | And (p1, p2) -> go p1 + go p2
     | App (p1, p2) -> go p1 + go p2

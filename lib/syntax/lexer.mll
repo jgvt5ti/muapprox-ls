@@ -30,9 +30,8 @@ rule token = parse
 | "[]"                     { NIL       }
 | "::"                     { CONS      }
 | "=l"                     { EQL       }
-| "<>l"                    { NEQL       }
-| "len"                    { LENGTH    }
-| "nlen"                   { NEGLENGTH }
+| "<>l"                    { NEQL      }
+| "size"                   { SIZE      }
 | "!" | "not"              { NOT       }
 | ("\\"|"λ")               { LAMBDA    }
 | ("=v"|"=ν")              { DEF_G     }

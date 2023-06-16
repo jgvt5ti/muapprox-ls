@@ -32,9 +32,9 @@ let convert_formula env phi =
     | Bool false ->
       let id = id_gen () in
       Abs (id, Var (as_var id))
-    | Pred (op, as') ->
+    | Pred (op, as', ls') ->
       let id = id_gen () in
-      Abs (id, Or (Pred (op, as'), Var (as_var id)))
+      Abs (id, Or (Pred (op, as', ls'), Var (as_var id)))
     | Or (p1, p2) ->
       let id = id_gen () in
       Abs (id, App (go env p1, App (go env p2, Var (as_var id))))

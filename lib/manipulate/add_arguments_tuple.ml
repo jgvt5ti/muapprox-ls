@@ -17,9 +17,8 @@ type 'ty thflz2 =
   | Exists of 'ty Id.t * 'ty thflz2
   | App    of 'ty thflz2 * ('ty thflz2 list)
   | Arith  of 'ty T.tarith
-  | Pred   of Formula.pred * 'ty T.tarith list
-  | LsArith  of 'ty T.tlsarith
-  | LsPred   of Formula.ls_pred * 'ty T.tarith list * 'ty T.tlsarith list
+  | LsExpr  of 'ty T.tlsarith
+  | Pred   of Formula.pred * 'ty T.tarith list * 'ty T.tlsarith list
   [@@deriving eq,ord,show]
 
 type ptype2 = TInt | TBool | TList | TFunc of (ptype2 * T.use_flag) list * ptype2 | TVar of unit Id.t
@@ -80,22 +79,22 @@ let get_free_variables phi =
     | Exists (x, p) -> List.filter (fun v -> not @@ Id.eq x v) (go p)
     | App (p1, p2) -> go p1 @ (List.map go p2 |> List.flatten)
     | Arith a -> go_arith a
-    | Pred (_, ps) -> List.map go_arith ps |> List.concat
-    | LsArith a -> go_ls_arith a
-    | LsPred (_, ps, ls) -> 
+    | LsExpr a -> go_lsexpr a
+    | Pred (_, ps, ls) -> 
       let fvs1 = List.map go_arith ps |> List.concat in
-      let fvs2 = List.map go_ls_arith ls |> List.concat in
+      let fvs2 = List.map go_lsexpr ls |> List.concat in
       List.append fvs1 fvs2
   and go_arith a = match a with
     | Int _ -> []
     | Var v -> [v]
     | Op (_, ps) -> List.map go_arith ps |> List.concat
-  and go_ls_arith a = match a with
+    | Size ls -> go_lsexpr ls
+  and go_lsexpr a = match a with
     | Nil -> []
     | LVar v -> [v]
     | Cons (hd, tl) ->
         let fv1 = go_arith hd in
-        let fv2 = go_ls_arith tl in
+        let fv2 = go_lsexpr tl in
         List.append fv1 fv2
   in
   go phi
@@ -117,8 +116,7 @@ let rec get_thflz2_type_without_check phi =
   end
   | Arith _ -> TInt
   | Pred _ -> TBool
-  | LsArith _ -> TList
-  | LsPred _ -> TBool
+  | LsExpr _ -> TList
 
 let get_args phi =
   let rec go phi = match phi with
@@ -224,7 +222,7 @@ module Print_temp = struct
       end
       | Arith a ->
         arith_ prec ppf a
-      | Pred (pred', [f1; f2]) ->
+      | Pred (pred', [f1; f2], []) ->
           (* p_id ppf sid;  *)
           Fmt.pf ppf "@[<1>%a@ %a@ %a@]"
             (arith_ prec) f1
@@ -398,17 +396,17 @@ let to_thflz2 rules =
     | Forall (x, p) -> Forall (convert_v_ty x, to_thflz2_sub p)
     | Exists (x, p) -> Exists (convert_v_ty x, to_thflz2_sub p)
     | Arith a -> Arith (go_arith a)
-    | LsArith a -> LsArith (go_ls_arith a)
-    | Pred (op, ps) -> Pred (op, List.map go_arith ps)
-    | LsPred (op, ps, ls) -> LsPred (op, List.map go_arith ps, List.map go_ls_arith ls)
+    | LsExpr a -> LsExpr (go_lsexpr a)
+    | Pred (op, ps, ls) -> Pred (op, List.map go_arith ps, List.map go_lsexpr ls)
   and go_arith a = match a with
     | Int i -> Int i
     | Var v -> Var (convert_v_ty v)
     | Op (op, ps) -> Op (op, List.map go_arith ps)
-  and go_ls_arith a = match a with
+    | Size ls -> Size (go_lsexpr ls)
+  and go_lsexpr a = match a with
     | Nil -> Nil
     | LVar v -> LVar (convert_v_ty v)
-    | Cons (hd, tl) -> Cons (go_arith hd, go_ls_arith tl)
+    | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
   in
   let rules =
     List.map
@@ -487,18 +485,15 @@ let check_thflz2_type rules =
       end
       | _ -> assert false
     end
-    | Pred (_, args) ->
-      List.iter (fun arg -> go_arith env arg) args;
-      TBool
-    | LsPred (_, arga, argl) ->
+    | Pred (_, arga, argl) ->
       List.iter (fun arg -> go_arith env arg) arga;
-      List.iter (fun arg -> go_ls_arith env arg) argl;
+      List.iter (fun arg -> go_lsexpr env arg) argl;
       TBool
     | Arith a ->
       go_arith env a;
       TInt
-    | LsArith a ->
-      go_ls_arith env a;
+    | LsExpr a ->
+      go_lsexpr env a;
       TList
   and go_arith env a = match a with
   | Int _ -> ()
@@ -509,8 +504,9 @@ let check_thflz2_type rules =
     | None -> assert false
   end
   | Op (_, args) ->
-    List.iter (fun arg -> go_arith env arg) args;  
-  and go_ls_arith env a = match a with
+    List.iter (fun arg -> go_arith env arg) args;
+  | Size ls -> go_lsexpr env ls
+  and go_lsexpr env a = match a with
     | Nil -> ()
     | LVar v -> begin
       match List.find_all (fun v' -> Id.eq v' v) env with
@@ -520,7 +516,7 @@ let check_thflz2_type rules =
     end
     | Cons (hd, tl) ->
       go_arith env hd;
-      go_ls_arith env tl
+      go_lsexpr env tl
   in
   List.iter
     (fun {var; body; _} ->
@@ -585,19 +581,19 @@ let rec to_hflz env body =
     let xs = List.map (to_hflz env) xs in
     go_app p (List.rev xs)
   | Arith a -> Hflz.Arith (go_arith a)
-  | LsArith a -> Hflz.LsArith (go_ls_arith a)
-  | Pred (p, as') -> Hflz.Pred (p, List.map go_arith as')
-  | LsPred (p, as', ls') -> Hflz.LsPred (p, List.map go_arith as', List.map go_ls_arith ls')
+  | LsExpr a -> Hflz.LsExpr (go_lsexpr a)
+  | Pred (p, as', ls') -> Hflz.Pred (p, List.map go_arith as', List.map go_lsexpr ls')
 and go_arith a =
   match a with
   | Int i -> Int i
   | Var v -> Var {v with ty=`Int}
   | Op (op, as') -> Op (op, List.map go_arith as')
-and go_ls_arith a =
+  | Size ls -> Size (go_lsexpr ls)
+and go_lsexpr a =
   match a with
   | Nil -> Nil
   | LVar v -> LVar {v with ty=`List}
-  | Cons (hd, tl) -> Cons (go_arith hd, go_ls_arith tl)
+  | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
   
 let to_hes rules =
   let pred_vars =

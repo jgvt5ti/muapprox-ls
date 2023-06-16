@@ -2,7 +2,7 @@ open Hflmc2_syntax
 module Env = Env_no_value
 (* open Hflz *)
 
-type 'ty tarith = 'ty Id.t Arith.gen_t
+type 'ty tarith = ('ty Id.t, 'ty Id.t) Arith.gen_t
 [@@deriving eq,ord,show]
 
 type 'ty thflz =
@@ -116,7 +116,7 @@ let to_thflzs hes dummy_unit_var_name =
       App (go env p1, go env p2)
     | Arith a ->
       Arith (go_arith env a)
-    | Pred (e, ps) ->
+    | Pred (e, ps, ls) ->
       Pred (e, List.map (go_arith env) ps)
   and go_arith env phi = match phi with
     | Int i -> Int i
@@ -320,7 +320,7 @@ let to_hflz (rules : ptype thes_rule list) =
     end
     | App (p1, p2) -> App (go p1, go p2)
     | Arith a -> Arith (go_arith a)
-    | Pred (op, ps) -> Pred (op, List.map go_arith ps)
+    | Pred (op, ps) -> Pred (op, List.map go_arith ps, [])
   and go_arith (phi : ptype tarith) = match phi with
     | Int i -> Arith.Int i
     | Var v ->

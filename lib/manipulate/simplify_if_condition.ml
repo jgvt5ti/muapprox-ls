@@ -19,7 +19,7 @@ module FormulaSimplification = struct
   let convert_to_smt2 (form : 'a t) =
     let used_variables = ref [] in
     let rec go form = match form with
-      | Pred (op, [a1; a2]) ->
+      | Pred (op, [a1; a2], []) ->
         trans_pred_ used_variables op a1 a2
       | Pred _ -> assert false
       | And (p1, p2) ->
@@ -96,13 +96,13 @@ module FormulaSimplification = struct
         let pred = C.to_predicate pred |> Formula.negate_pred in
         let x1 = go_arith x1 in
         let x2 = go_arith x2 in
-        Pred (pred, [x1; x2])
+        Pred (pred, [x1; x2], [])
       end
       | Sexp.List ((Atom pred)::x1::[x2]) ->
         let pred = C.to_predicate pred in
         let x1 = go_arith x1 in
         let x2 = go_arith x2 in
-        Pred (pred, [x1; x2])
+        Pred (pred, [x1; x2], [])
       | _ -> assert false
     in
     go sexp

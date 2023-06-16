@@ -95,7 +95,7 @@ let add_extra_arguments body =
       let p, new_ids = go p in
       Exists (x, p), new_ids
     | Arith a -> Arith a, []
-    | Pred (p, l) -> Pred (p, l), []
+    | Pred (p, l, ls) -> Pred (p, l, ls), []
   in
   go body
 

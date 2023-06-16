@@ -103,7 +103,7 @@ let convert_to_smt2 (exprs : 'a t list) =
     List.map
       (fun e ->
         match e with
-        | Pred (op, [a1; a2]) -> begin
+        | Pred (op, [a1; a2], []) -> begin
           match trans_pred_ op a1 a2 with
           | None -> false, e, ""
           | Some s -> true, e, s
@@ -135,7 +135,7 @@ let to_hflz const_bounds variables parsed =
     let consts =
       List.filter_map
         ~f:(fun clause -> match clause with
-          | Pred (op, [e1; e2]) -> begin
+          | Pred (op, [e1; e2], []) -> begin
             match op, e1, e2 with
             | Lt, Var v, Int i -> Some (v, i)
             | _ -> None
@@ -153,7 +153,7 @@ let to_hflz const_bounds variables parsed =
       const_bounds
     |>
     List.map
-      ~f:(fun (v, i) -> Pred (Lt, [Var v; Int i]))
+      ~f:(fun (v, i) -> Pred (Lt, [Var v; Int i], []))
   in
   let get_var_id x =
     match List.filter ~f:(fun id -> String.(=) (string_of_id id) x) variables with
@@ -246,7 +246,7 @@ let to_hflz const_bounds variables parsed =
         pred, go_arith x1, go_arith x2
       | _ -> failwith "go_pred" in
     let pred = flip_pred pred in
-    Pred (pred, [rhs; lhs])
+    Pred (pred, [rhs; lhs], [])
   in
   let go_ors parsed = match parsed with
     | Sexp.List (op::args) -> begin
@@ -267,8 +267,8 @@ let to_hflz const_bounds variables parsed =
 
 let get_const_bound exprs =
   let rec go = function
-    | Pred (Lt, [Var v; Int i])::xs -> (v, i)::(go xs)
-    | Pred (Lt, [_; _])::xs -> go xs
+    | Pred (Lt, [Var v; Int i], [])::xs -> (v, i)::(go xs)
+    | Pred (Lt, [_; _], [])::xs -> go xs
     | _::xs -> go xs
     | [] -> []
   in

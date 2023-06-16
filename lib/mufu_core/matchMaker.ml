@@ -69,8 +69,8 @@ let subs_var to_be by f =
   | H.Int _ as f -> f, false
   | H.Op (o, f1) as f ->
      select_from_list aux (fun f' -> H.mk_op o f') f f1
-  | H.Pred (p, f1) as f ->
-     H.Pred (p, List.map (fun x -> aux x |> fst) f1) |> A.div_norm, true
+  | H.Pred (p, f1, f2) as f ->
+     H.Pred (p, List.map (fun x -> aux x |> fst) f1, f2) |> A.div_norm, true
   | H.Forall (s, f1) as f ->
      select_from_one aux (fun f' -> H.mk_forall s f') f f1
   | H.Exists (s, f1) as f ->
@@ -98,7 +98,7 @@ let subs_f to_be by f =
     | H.Int _ as f -> f, false
     | H.Op (o, f1) as f ->
        select_from_list aux (fun f' -> H.mk_op o f') f f1
-    | H.Pred (p, f1) as f ->
+    | H.Pred (p, f1, _) as f ->
        select_from_list aux (fun f' -> H.mk_preds p f') f f1
     | H.Forall (s, f1) as f ->
        select_from_one aux (fun f' -> H.mk_forall s f') f f1
@@ -131,7 +131,7 @@ let fv f =
     | H.Int _ -> []
     | H.Op (_, f1) ->
        List.map fv f1 |> List.concat
-    | H.Pred (_, f1) ->
+    | H.Pred (_, f1, f2) ->
        List.map fv f1 |> List.concat
     | H.Exists (s, f1) ->
        fv f1 |> (subtract s)
@@ -148,15 +148,15 @@ let rec list_to_binary = function
   | H.Op (_, [x]) -> x
   | H.Op (o, xs) -> 
      List.fold_left (fun acc x -> H.Op (o, [acc;x])) (List.hd xs) (List.tl xs) 
-  | H.Pred (Formula.Eq, []) -> H.Bool true
-  | H.Pred (_, []) -> H.Bool false
-  | H.Pred (_, [x]) -> x
-  | H.Pred (o, xs) ->
+  | H.Pred (Formula.Eq, [], []) -> H.Bool true
+  | H.Pred (_, [], []) -> H.Bool false
+  | H.Pred (_, [x], []) -> x
+  | H.Pred (o, xs, []) ->
      begin
        match xs with
          a::b::xs' ->
-          let u = H.Pred (o, [a;b]) in
-          List.fold_left (fun acc x -> H.And (acc, H.Pred(o, [a;x]))) u xs'
+          let u = H.Pred (o, [a;b], []) in
+          List.fold_left (fun acc x -> H.And (acc, H.Pred(o, [a;x], []))) u xs'
        | _ -> raise A.UnexpectedExpression
      end
   | _ -> raise A.UnexpectedExpression;;
@@ -182,7 +182,7 @@ let add_to_model x r = function
        try
          let (_, r') = List.find (fun (v,_) -> v=x) zs in         
          if
-           H.Pred (Formula.Eq, [r;r']) |> Z.is_tautology
+           H.Pred (Formula.Eq, [r;r'], []) |> Z.is_tautology
          then
            u
          else
@@ -251,7 +251,7 @@ and unify_arith u e1 e2 =
       ) ([],e1) fv1 in
   if List.length unmodeled_vars = 0 then
     begin
-      if Z.is_tautology (H.Pred (Formula.Eq, [e1';e2])) then
+      if Z.is_tautology (H.Pred (Formula.Eq, [e1';e2], [])) then
         u
       else
         None
@@ -308,7 +308,7 @@ let rec unify_app u args f1 f2 =
          
 let rec unify_pred u f1 f2 =
   match f1, f2 with
-    H.Pred (op1, es1), H.Pred (op2, es2) when op1 = op2 ->
+    H.Pred (op1, es1, []), H.Pred (op2, es2, []) when op1 = op2 ->
      if List.length es1 = List.length es2 then
        let es12 = List.combine es1 es2 in
        unify_list u es12
@@ -586,7 +586,7 @@ let find_matching fix _X (params : string list) f f' =
 ;;
 
 let subs_eq_pred to_be c d by = function
-  | H.Pred (Formula.Eq, a::b::_) ->
+  | H.Pred (Formula.Eq, a::b::_, []) ->
      let fva = fv a in
      let fvb = fv b in
      let ina = List.mem to_be fva in
@@ -627,7 +627,7 @@ let subs_eq_pred to_be c d by = function
 let reduce_eq ?(fresh=[]) fs =
   let rec reduce_eq acc = function
       [] -> acc
-    | (H.Pred (Formula.Eq, a'::b::[]) as x)::xs when List.exists (fun v -> List.mem v fresh) (fv a') ->
+    | (H.Pred (Formula.Eq, a'::b::[], []) as x)::xs when List.exists (fun v -> List.mem v fresh) (fv a') ->
        begin
          let v = fv a' |> List.hd in
          let (c, d) = A.cx_d v a' in

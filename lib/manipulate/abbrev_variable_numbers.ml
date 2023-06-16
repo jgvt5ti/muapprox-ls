@@ -71,7 +71,7 @@ let abbrev_variable_numbers (env : 'a Type.arg Env.t) (phi : 'a Hflz.t) =
     | And (p1, p2) -> And (go env p1, go env p2)
     | App (p1, p2) -> App (go env p1, go env p2)
     | Arith a -> Arith (go_arith env a)
-    | Pred (p, a) -> Pred (p, List.map (go_arith env) a)
+    | Pred (p, a, ls) -> Pred (p, List.map (go_arith env) a, ls)
   and go_arith (env : 'a Type.arg Env.t) (a : Arith.t) : Arith.t =
     match a with
     | Int i -> Int i

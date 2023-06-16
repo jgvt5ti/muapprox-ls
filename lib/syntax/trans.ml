@@ -30,7 +30,7 @@ module Subst = struct
     let rec formula : [`Int ] S.Id.t IdMap.t -> S.Formula.t -> S.Formula.t =
       fun env p ->
         match p with
-        | Pred(prim, as') -> Pred(prim, List.map as' ~f:(arith env))
+        | Pred(prim, as', ls') -> Pred(prim, List.map as' ~f:(arith env), ls')
         | And ps -> And(List.map ~f:(formula env) ps)
         | Or  ps -> Or (List.map ~f:(formula env) ps)
         | _ -> p
@@ -51,11 +51,11 @@ module Subst = struct
   (* TODO IdMapを使う *)
   module Arith = struct
     let rec arith_
-              : ('var -> 'var -> bool)
-             -> 'var
-             -> 'var S.Arith.gen_t
-             -> 'var S.Arith.gen_t
-             -> 'var S.Arith.gen_t =
+              : ('avar -> 'avar -> bool)
+             -> 'avar
+             -> ('avar, 'lvar) S.Arith.gen_t
+             -> ('avar, 'lvar) S.Arith.gen_t
+             -> ('avar, 'lvar) S.Arith.gen_t =
       fun equal x a a' ->
         match a' with
         | Int _ -> a'
@@ -65,14 +65,14 @@ module Subst = struct
       fun x a a' -> arith_ S.Id.eq {x with ty=`Int} a a'
 
     let rec formula_
-              : ('var -> 'var -> bool)
-             -> 'var
-             -> 'var S.Arith.gen_t
+              : ('avar -> 'avar -> bool)
+             -> 'avar
+             -> ('avar, 'lvar) S.Arith.gen_t
              -> ('bvar,'var, 'lvar) S.Formula.gen_t
              -> ('bvar,'var, 'lvar) S.Formula.gen_t =
       fun equal x a p ->
         match p with
-        | Pred(prim, as') -> Pred(prim, List.map as' ~f:(arith_ equal x a))
+        | Pred(prim, as', ls') -> Pred(prim, List.map as' ~f:(arith_ equal x a), ls')
         | And ps -> And(List.map ~f:(formula_ equal x a) ps)
         | Or  ps -> Or (List.map ~f:(formula_ equal x a) ps)
         | _ -> p
@@ -99,6 +99,7 @@ module Subst = struct
       fun x a arg ->
         match arg with
         | TyInt -> TyInt
+        | TyList -> TyList
         | TySigma(sigma) -> TySigma(abstraction_ty x a sigma)
     let abstraction_ty
           : 'a S.Id.t
@@ -126,6 +127,7 @@ module Subst = struct
             | _ -> assert false
             end
         | Op(op, as') -> Op(op, List.map ~f:(arith env) as')
+        | Size ls -> Size ls
 
     let rec rename_binding_if_necessary (env : IdSet.t) (phi : 'ty S.Hflz.t): 'ty S.Hflz.t =
       let open S in
@@ -136,6 +138,7 @@ module Subst = struct
             let new_x_term = (
               match x_arg.ty with
               | TyInt -> Hflz.Arith (Var { new_x with ty = `Int })
+              | TyList -> Hflz.LsExpr (LVar { new_x with ty = `List })
               | TySigma ty -> Hflz.Var ({ new_x with ty = ty})
             ) in
             (* arithの対応 *)
@@ -160,7 +163,7 @@ module Subst = struct
         | Exists (x, t) ->
           let (x, t) = subst_new_id x t in
           Exists (x, t)
-        | Arith _ | Pred _ | Bool _ -> phi in
+        | Arith _ | Pred _ | Bool _ | LsExpr _ -> phi in
       go phi
       
     and hflz ?(callback) (env_ : 'ty S.Hflz.t env) (phi : 'ty S.Hflz.t) : 'ty S.Hflz.t =
@@ -199,8 +202,8 @@ module Subst = struct
           Exists(x, hflz_ (IdMap.remove s_env x) (IdSet.add b_env x) t)
         | Arith a        ->
           Arith (arith s_env a)
-        | Pred (p,as')   ->
-          Pred(p, List.map ~f:(arith s_env) as')
+        | Pred (p,as', ls')   ->
+          Pred(p, List.map ~f:(arith s_env) as', ls')
         | Bool _         -> phi
       in
       hflz_ env_ IdSet.empty phi

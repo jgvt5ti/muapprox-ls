@@ -49,9 +49,8 @@ let assign_flags (rules : ptype2 thes_rule list) : ptype2 thes_rule_in_out list 
     | Exists (x, p) -> Exists ({x with ty=assign_flags_to_type x.ty}, go p)
     | App (p1, ps) -> App (go p1, List.map go ps)
     | Arith a -> Arith a
-    | Pred (e, ps) -> Pred (e, ps)
-    | LsArith a -> LsArith a
-    | LsPred (e, ps, ls) -> LsPred (e, ps, ls)
+    | LsExpr a -> LsExpr a
+    | Pred (e, ps, ls) -> Pred (e, ps, ls)
   in
   List.map
     (fun {var; body; fix} ->
@@ -188,8 +187,7 @@ let generate_flag_constraints
     end
     | Arith _ -> (TInt, [])
     | Pred _ -> (TBool, [])
-    | LsArith _ -> (TList, [])
-    | LsPred _ -> (TBool, [])
+    | LsExpr _ -> (TList, [])
   in
   let global_env =
     List.map (fun {var_in_out; fix; _} -> (var_in_out, T.EFVar (Id.gen ()), fix)) rules in
@@ -242,9 +240,8 @@ let subst_flags_program (rules : ptype2 thes_rule_in_out list) (subst : (unit Id
     | Exists (x, p) -> Exists ({x with ty=subst_flags_type x.ty subst}, go p)
     | App (p1, p2) -> App (go p1, List.map go p2)
     | Arith a -> Arith a
-    | Pred (op, ps) -> Pred (op, ps)
-    | LsArith a -> LsArith a
-    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
+    | LsExpr a -> LsExpr a
+    | Pred (op, ps, ls) -> Pred (op, ps, ls)
   in
   List.map
     (fun {var_in_out; body; fix} ->
@@ -287,9 +284,8 @@ let set_tag_in_undetermined_tags rules to_set_tag =
     | Exists (x, p) -> Exists ({x with ty=set_tag_in_undetermined_tags_ty x.ty to_set_tag}, go p)
     | App (p1, p2) -> App (go p1, List.map go p2)
     | Arith a -> Arith a
-    | Pred (op, ps) -> Pred (op, ps)
-    | LsArith a -> LsArith a
-    | LsPred (op, ps, ls) -> LsPred (op, ps, ls)
+    | LsExpr a -> LsExpr a
+    | Pred (op, ps, ls) -> Pred (op, ps, ls)
   in
   List.map
     (fun {var_in_out; body; fix} ->
