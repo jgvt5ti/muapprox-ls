@@ -1,5 +1,5 @@
 %HES
-Sentry =v ∀n.∀ls. (nlen n ls) \/ (G ls A).
+Sentry =v ∀ls. (G ls A).
 A n =v true.
 G ls k =m ∀hd.∀tl. (ls <>l [] \/ k 0) /\
 (ls <>l (hd :: tl) \/
