@@ -97,7 +97,7 @@ let get_thflz_type env phi =
     | Size l ->
       let ty = go_lsexpr env l in
       assert (ty = TList);
-      TList
+      TInt
   and go_lsexpr env a = match a with
     | Nil -> TList
     | LVar v -> begin

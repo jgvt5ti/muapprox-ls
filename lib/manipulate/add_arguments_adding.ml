@@ -54,6 +54,7 @@ module Simplify = struct
           Print.show_paren (prec > Print.Prec.neg) ppf "-%a"
             (gen_arith_ Print.Prec.(succ neg)) a'
       | Op _ -> show_op a
+      | Size _ -> Fmt.string ppf "size"
       
   type 'a arith2 =
     | Int of int
@@ -755,6 +756,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
     | Int i -> Int i
     | Var x -> Var {x with ty=TInt'}
     | Op (o, ps) -> Op (o, List.map go_arith ps)
+    | Size ls -> Size (go_lsexpr ls)
   and go_lsexpr a = match a with
     | Nil -> Nil
     | LVar x -> LVar {x with ty=TList'}
@@ -838,6 +840,7 @@ let to_hes (rules : (ptype' Id.t * ptype' T.thflz * T.fixpoint) list) =
       Var {x with ty=`Int}
     | Op (p, ps) ->
       Op (p, List.map go_arith ps)
+    | Size ls -> Size (go_lsexpr ls)
   and go_lsexpr a = match a with
     | Nil -> Nil
     | LVar x ->  

@@ -156,6 +156,7 @@ module Print_temp = struct
           (Fmt.string ppf "("; Fmt.int ppf n; Fmt.string ppf ")";)
       | Var (x) -> avar_ prec ppf x
       | Op (_, _) -> show_op a
+      | Size _ -> Fmt.string ppf "size"
       
   let id_ (_prec : prec) (ppf : formatter) (x : 'pty Id.t) = id ppf x
   let arith_ (prec : Prec.t) (ppf: formatter) (a : ('pty Id.t, 'pty Id.t) Arith.gen_t)

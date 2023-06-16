@@ -429,6 +429,8 @@ let encode_body_exists_formula_sub
       match var.Id.ty with
       | TyInt ->
         Some var
+      | TyList ->
+        Some var
       | TySigma _ -> begin
         if (Hflz.fvs_with_type hfl
           |> List.exists (fun fv -> Id.eq fv var))

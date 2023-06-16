@@ -145,6 +145,7 @@ let assign_unique_variable_id_sub id_change_map env phi =
 let assign_unique_variable_id (hes : Type.simple_ty Hflz.hes_rule list): Type.simple_ty Hflz.hes_rule list * (unit Id.t * Type.simple_ty Type.arg Id.t) list =
   let to_ty ty = match ty with
     | Type.TyInt -> failwith "ty"
+    | Type.TyList -> failwith "ty"
     | TySigma s -> s
   in
   let id_change_map = ref [] in
@@ -257,7 +258,7 @@ let rec beta id_type_map (phi : 'a Hflz.t) : ('b * 'a Hflz.t ) =
   | Exists (x, phi) ->
     let id_type_map, phi = beta id_type_map phi in
     id_type_map, Exists (x, phi)
-  | Bool _ | Var _ | Arith _ | Pred _ -> id_type_map, phi
+  | Bool _ | Var _ | Arith _ | Pred _ | LsExpr _ -> id_type_map, phi
 
 let update_id_type_map (id_type_map : (unit Id.t, variable_type, IdMap.Key.comparator_witness) Base.Map.t) (id_change_map : (unit Id.t * Type.simple_ty Type.arg Id.t) list) =
   (* id -> [id] というmap *)
