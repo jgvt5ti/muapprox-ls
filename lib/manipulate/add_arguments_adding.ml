@@ -447,7 +447,7 @@ let get_occuring_arith_terms phi added_vars =
         |> List.filter (fun a -> a <> Arith.Int 0)
         |> List.map (fun a -> (a, get_occurring_arith_vars a)) in
       let v2 = ls |> List.concat_map (fun a -> get_occurring_arith_from_lsexpr a) in
-      v1
+      v1 @ v2
   and get_occurring_arith_vars phi = match phi with
     | Int _ -> []
     | Var v -> [Id.remove_ty v]

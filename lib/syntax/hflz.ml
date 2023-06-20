@@ -150,7 +150,6 @@ let rec fvs = function
     IdSet.of_list @@ List.append fvs1 fvs2
 
 
- (* TODO *)
 let fvs_with_type : 'ty t -> 'ty Type.arg Id.t list = fun hes ->
   let rec go = function
     | Var x          -> [{ x with ty = Type.TySigma x.ty}]
@@ -161,17 +160,23 @@ let fvs_with_type : 'ty t -> 'ty Type.arg Id.t list = fun hes ->
     | Abs(x, phi)    -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi(* listだと、ここが毎回線形時間になる... *)
     | Forall(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
     | Exists(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
-    | Arith a        -> List'.map (fun id -> {id with Id.ty = Type.TyInt}) @@ Arith.fvs_notype a
-    (* | LsExpr a      -> List'.map (fun id -> {id with Id.ty = Type.TyList}) @@ Arith.lfvs a *)
-    | Pred (_, as', _)  -> as' |> List'.map (fun a -> Arith.fvs_notype a |> List'.map (fun id -> {id with Id.ty = Type.TyInt})) |> List'.flatten
-    (* | LsPred (_, as', ls')-> 
-      let fvsa1 = as' |> List'.map (fun a -> Arith.fvs a) |> List'.flatten in
-      let (fvsa2, fvsl) = ls' |> List'.map (fun a -> Arith.lfvs a) |> List.unzip in
-      let (fvsa2, fvsl) = (List'.flatten fvsa2, List'.flatten fvsl) in
-      let fvsa = List'.append fvsa1 fvsa2 in
+    | Arith a        -> 
+      let (lfvs, afvs) = Arith.fvs a in
+      let afvs = List'.map (fun id -> {id with Id.ty = Type.TyInt}) afvs in
+      let lfvs = List'.map (fun id -> {id with Id.ty = Type.TyList}) lfvs in
+      afvs @ lfvs
+    | LsExpr l       ->
+      let (lfvs, afvs) = Arith.lfvs l in
+      let afvs = List'.map (fun id -> {id with Id.ty = Type.TyInt}) afvs in
+      let lfvs = List'.map (fun id -> {id with Id.ty = Type.TyList}) lfvs in
+      afvs @ lfvs
+    | Pred (_, as', ls')-> 
+      let (fvsa1, fvsl1) = as' |> List'.map (fun a -> Arith.fvs a) |> List.unzip in
+      let (fvsa2, fvsl2) = ls' |> List'.map (fun a -> Arith.lfvs a) |> List.unzip in
+      let (fvsa, fvsl) = (List'.flatten (fvsa1 @ fvsa2), List'.flatten (fvsl1 @ fvsl2)) in
       let fvsa = fvsa |> List'.map (fun id -> {id with Id.ty = Type.TyInt}) in
-      let fvsl = List'.map (fun id -> {id with Id.ty = Type.TyList}) in
-      List.append fvsa fvsl *) in 
+      let fvsl = fvsl |> List'.map (fun id -> {id with Id.ty = Type.TyList}) in
+      fvsa @ fvsl in 
   go hes |> Hflmc2_util.remove_duplicates (fun e x -> Id.eq e x) |> List.sort ~compare:(fun a b -> Int.compare a.id b.id)
 
 exception CannotNegate

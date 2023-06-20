@@ -265,15 +265,32 @@ let get_occuring_arith_terms id_type_map phi =
     | Exists (x, p1) -> remove (go_hflz p1) x
     | App (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
     | Arith (a) -> [(a, get_occurring_arith_vars a)]
-    | Pred (p, xs, _) -> begin
+    | LsExpr (l) -> get_occurring_arith_from_lsexpr l
+    | Pred (p, xs, ls) -> begin
       match p, xs with
       | Lt, [Var x; _] when Hflmc2_syntax.IdMap.mem id_type_map (Id.remove_ty x) -> []
-      | _ -> List.map (fun a -> (a, get_occurring_arith_vars a)) xs
+      | _ -> 
+        let v1 = List.map (fun a -> (a, get_occurring_arith_vars a)) xs in
+        let v2 = ls |> List.concat_map (fun a -> get_occurring_arith_from_lsexpr a) in
+        v1 @ v2
     end
   and get_occurring_arith_vars phi = match phi with
     | Int _ -> []
     | Var v -> [Id.remove_ty v]
     | Op (_, xs) -> List.map get_occurring_arith_vars xs |> List.concat
+    | Size ls -> get_occurring_vars_from_lsexpr ls
+  and get_occurring_vars_from_lsexpr phi = match phi with
+    | Arith.Cons (hd, tl) -> 
+        let v1 = get_occurring_arith_vars hd in
+        let v2 = get_occurring_vars_from_lsexpr tl in
+        v1 @ v2
+    | _ -> []
+  and get_occurring_arith_from_lsexpr phi = match phi with
+    | Arith.Cons (hd, tl) -> 
+        let v1 = go_hflz (Arith hd) in
+        let v2 = go_hflz (LsExpr tl) in
+        v1 @ v2
+    | _ -> []
   in
   go_hflz phi |> List.map fst
 
@@ -313,6 +330,7 @@ let get_guessed_terms
           | None -> None
         end
         | Type.TyInt -> None
+        | Type.TyList -> None
       )
     )
   in
@@ -422,7 +440,7 @@ let encode_body_exists_formula_sub
       | Exists (x, hfl) -> go (x::acc) hfl
       | _ -> (acc, hfl) in
     let (bound_vars, hfl) = go [] hfl in
-    (* ensure all variables are integer type (otherwise, error) *)
+    (* ensure all variables are integer type or list type (otherwise, error) *)
     bound_vars |>
     List.rev |>
     List.filter_map (fun var -> 
@@ -440,11 +458,11 @@ let encode_body_exists_formula_sub
       end
     ), hfl in
   let guessed_terms =
-    log_string @@ "[encode_body_exists_formula_sub.guessed_conditions] body: " ^ show_hflz hfl;
-    log_string @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_ho_map;
+    print_endline @@ "[encode_body_exists_formula_sub.guessed_conditions] body: " ^ show_hflz hfl;
+    print_endline @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_ho_map;
     let id_type_map' = to_id_ho_map_from_id_type_map id_type_map in
-    log_string "id_type_map' (exists)";
-    log_string @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_type_map';
+    print_endline "id_type_map' (exists)";
+    print_endline @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_type_map';
     let guessed_terms =
       get_guessed_terms id_type_map [hfl] (if use_all_scoped_variables then env else []) (id_ho_map @ id_type_map')
       |> List.map (fun arith_t ->
@@ -458,7 +476,7 @@ let encode_body_exists_formula_sub
       )
       |> List.concat
       |> Hflmc2_util.remove_duplicates (=) in
-    log_string @@ "guessed_terms: " ^ (List.map (fun rr -> (show_hflz (Arith rr))) guessed_terms |> String.concat ",");
+    print_endline @@ "guessed_terms: " ^ (List.map (fun rr -> (show_hflz (Arith rr))) guessed_terms |> String.concat ",");
     guessed_terms in
   let formula_type_vars = Hflz_util.get_hflz_type hfl |> to_args |> List.rev in
   (* get free variables *)
@@ -546,20 +564,20 @@ let encode_body_exists_formula new_pred_name_cand coe1 coe2 hes_preds hfl id_typ
     | Abs (v, f1)  -> Abs (v, go (v::env) hes_preds f1)
     | Forall (v, f1) -> Forall (v, go (v::env) hes_preds f1)
     | Exists (v, f1) -> begin
-      if v.ty <> Type.TyInt then (
+      if v.ty = Type.TyInt || v.ty = Type.TyList then begin
+        let hfl, rules = encode_body_exists_formula_sub new_pred_name_cand coe1 coe2 hes_preds hfl id_type_map id_ho_map use_all_scoped_variables env in
+        let new_rule_vars = List.map (fun rule -> { rule.var with ty = Type.TySigma rule.var.ty }) rules in
+        let rules = List.map (fun rule -> { rule with body = go [] (new_rule_vars @ hes_preds) rule.body } ) rules in
+        new_rules := rules @ !new_rules;
+        hfl
+      end else begin
         (* boundされている変数の型が整数以外 *)
         match IdSet.find (fvs f1) ~f:(fun i -> Id.eq i v) with
         | None ->
           (* boundされている変数が使用されない、つまり無駄なboundなので無視 *)
           go (v::env) hes_preds f1
         | Some x -> failwith @@ "quantifiers for higher-order variables are not implemented (" ^ x.name ^ ")"
-      ) else (
-        let hfl, rules = encode_body_exists_formula_sub new_pred_name_cand coe1 coe2 hes_preds hfl id_type_map id_ho_map use_all_scoped_variables env in
-        let new_rule_vars = List.map (fun rule -> { rule.var with ty = Type.TySigma rule.var.ty }) rules in
-        let rules = List.map (fun rule -> { rule with body = go [] (new_rule_vars @ hes_preds) rule.body } ) rules in
-        new_rules := rules @ !new_rules;
-        hfl
-      )
+      end
     end
     | App (f1, f2) -> App (go env hes_preds f1, go env hes_preds f2)
     | Arith t -> Arith t
@@ -1197,6 +1215,7 @@ let encode_body_forall_formula new_pred_name_cand hes_preds hfl =
     | Exists (v, f1) -> Exists (v, go hes_preds f1)
     | App (f1, f2) -> App (go hes_preds f1, go hes_preds f2)
     | Arith t -> Arith t
+    | LsExpr l -> LsExpr l
     | Pred (p, t, ls) -> Pred (p, t, ls) in
   let hfl = go hes_preds hfl in
   hfl, !new_rules
