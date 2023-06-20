@@ -70,6 +70,11 @@ let make_approx_formula fa_var_f bounds =
   |> List.map (fun bound -> Pred (Lt, [Var fa_var_f; bound], []))
   |> formula_fold (fun acc f -> Or (acc, f))
 
+let make_approx_formula_ls fa_var_f bounds = 
+  bounds
+  |> List.map (fun bound -> Pred (Lt, [Size (LVar fa_var_f); bound], []))
+  |> formula_fold (fun acc f -> Or (acc, f))
+
 (* abstractioの順序を逆にする *)
 let rev_abs hflz =
   let rec get_abs acc hflz =
@@ -294,6 +299,33 @@ let get_occuring_arith_terms id_type_map phi =
   in
   go_hflz phi |> List.map fst
 
+let get_max_integer phi =
+    let rec go_hflz phi = match phi with
+    | Bool _ -> 0
+    | Var _ -> 0 (* use only arithmetic variable *)
+    | Or (p1, p2) -> max (go_hflz p1) (go_hflz p2)
+    | And (p1, p2) -> max (go_hflz p1) (go_hflz p2)
+    | Abs (_, p1) -> go_hflz p1
+    | Forall (_, p1) -> go_hflz p1
+    | Exists (_, p1) -> go_hflz p1
+    | App (p1, p2) -> max (go_hflz p1) (go_hflz p2)
+    | Arith (a) -> go_arith a
+    | LsExpr (l) -> go_lsexpr l
+    | Pred (_, xs, ls) ->
+      let n1 = xs |> List.map go_arith |> List.fold_left max 0 in
+      let n2 = ls |> List.map go_lsexpr |> List.fold_left max 0 in
+      max n1 n2
+    and go_arith a = match a with
+    | Var _ -> 0
+    | Int n -> n
+    | Op (_, args) -> args |> List.map go_arith |> List.fold_left max 0
+    | Size (ls) -> go_lsexpr ls
+    and go_lsexpr l = match l with
+    | LVar _ -> 0
+    | Nil -> 0
+    | Cons (hd, tl) -> max (go_arith hd) (go_lsexpr tl)
+  in go_hflz phi
+
 let get_guessed_terms
     (id_type_map : (unit Id.t, Hflz_util.variable_type, Hflmc2_syntax.IdMap.Key.comparator_witness) Base.Map.t)
     arg_terms
@@ -510,9 +542,14 @@ let encode_body_exists_formula_sub
       bound_vars
       |> List.rev
       |> List.map (fun bound_var ->
-        make_approx_formula
-          {bound_var with ty=`Int}
-          guessed_conditions
+        if bound_var.Id.ty = TyInt then
+          make_approx_formula
+            {bound_var with ty=`Int}
+            guessed_conditions
+        else
+          make_approx_formula_ls
+            {bound_var with ty=`List}
+            guessed_conditions
       ) in
     rev_abs (
       (formula_type_vars |> List.rev |> to_abs') @@
@@ -532,31 +569,43 @@ let encode_body_exists_formula_sub
         And (
           ((* substitute rec vars to negative *)
           (* NOTE: exponential blow-up *)
-          let rec go acc vars = match vars with
+          let rec go acc vars = match vars with (* Exist (- x)*)
             | [] -> acc
             | x::xs ->
               go (acc |>
                   List.map (fun hfl -> 
                     hfl::[
                       subst_arith_var
-                        (fun vid -> if Id.eq vid x then (Arith.Op (Sub, [Int 0; Var {x with ty=`Int}])) else Var vid) hfl]) |>
+                        (fun vid -> if x.Id.ty = TyInt && Id.eq vid x then (Arith.Op (Sub, [Int 0; Var {x with ty=`Int}])) else Var vid) hfl]) |>
                   List.flatten)
                   xs in
           let terms1 =
             (go [hfl] bound_vars)
             |> List.map (fun f -> args_ids_to_apps formula_type_vars f) in
-          let terms2 = 
+          let terms2 = (* Exist (n - 1) , Exist (tail ls) *)
             bound_vars |>
             List.map (fun var ->
               arg_vars
-              |> List.map (fun v -> if Id.eq v var then Arith (Op (Sub, [Var {v with ty=`Int}; Int 1])) else arg_id_to_var v)
+              |> List.map begin fun v -> 
+                if v.Id.ty = TyInt && Id.eq v var then
+                  Arith (Op (Sub, [Var {v with ty=`Int}; Int 1])) 
+                else if v.Id.ty = TyList && Id.eq v var then
+                  LsExpr (LVar {v with ty=`List}) (* TODO *)
+                else arg_id_to_var v
+              end
               |> List.fold_left
                 (fun acc t -> App (acc, t))
                 (Var new_pvar)
               ) in
           (terms1 @ terms2) |> formula_fold (fun acc f -> Or (acc, f))),
           bound_vars
-          |> List.map (fun var -> Pred (Ge, [Var {var with ty=`Int}; Int 0], []))
+          |> List.map begin
+              fun var ->
+                if var.Id.ty = TyInt then
+                  Pred (Ge, [Var {var with ty=`Int}; Int 0], [])
+                else
+                  Pred (Ge, [Size (LVar {var with ty=`List}); Int 0], [])
+            end
           |> formula_fold (fun acc f -> And (acc, f))
         )
     }]
@@ -577,7 +626,7 @@ let encode_body_exists_formula new_pred_name_cand coe1 coe2 hes_preds hfl id_typ
         new_rules := rules @ !new_rules;
         hfl
       end else begin
-        (* boundされている変数の型が整数以外 *)
+        (* boundされている変数の型が整数かリスト以外 *)
         match IdSet.find (fvs f1) ~f:(fun i -> Id.eq i v) with
         | None ->
           (* boundされている変数が使用されない、つまり無駄なboundなので無視 *)
