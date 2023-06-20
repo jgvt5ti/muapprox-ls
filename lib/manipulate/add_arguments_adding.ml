@@ -293,7 +293,7 @@ let fold_formula f xs =
   end
   | [] -> failwith "fold_formula: should have more than 0 elements"
   
-let make_bounds simplifier xs c1 c2 r =
+let make_bounds simplifier xs ls c1 c2 r =
   let bounds =
     List.map
       (fun x ->
@@ -303,7 +303,14 @@ let make_bounds simplifier xs c1 c2 r =
       )
       xs
     |> List.concat in
-  let bounds = Hflmc2_util.remove_duplicates (=) bounds in
+  let bounds_ls =
+    List.map
+      (fun x ->
+        (* r < (c1 * size x) + c2 *)
+        T.Pred (Lt, [Var r; simplifier (Arith.Op (Add, [(Op (Mult, [Int c1; Size x])); Int c2])) |> Simplify.standarize], []);
+      )
+      ls in
+  let bounds = Hflmc2_util.remove_duplicates (=) (List.append bounds bounds_ls) in
   (bounds @ [T.Pred (Lt, [Var r; Int c2], [])]) |> fold_formula (fun acc f -> T.Or (acc, f))
 
 (* check that a body of Abses has bool type *)
@@ -348,14 +355,20 @@ let get_free_variables_in_arith a =
     | Arith.Op (_, xs) -> List.map go xs |> List.flatten
     | Int _ -> []
     | Var x -> [x]
-  in
+    | Size ls -> go_ls ls
+  and go_ls ls = match ls with
+    | Cons (hd, tl) ->
+      let v1 = go hd in
+      let v2 = go_ls tl in
+      v1 @ v2
+    | _ -> [] in
   go a
 
 let make_bounds' simplifier (id_type_map : (unit Id.t, Hflz_util.variable_type, IdMap.Key.comparator_witness) Base.Map.t
 ref
-) (add_args : ((ptype' Id.t, ptype' Id.t) Arith.gen_t list * int * int * ptype' Id.t) list) (body : ptype' T.thflz) : ptype' T.thflz =
+) (add_args : ((ptype' Id.t, ptype' Id.t) Arith.gen_t list * (ptype' Id.t, ptype' Id.t) Arith.gen_lt list * int * int * ptype' Id.t) list) (body : ptype' T.thflz) : ptype' T.thflz =
   let rec go = function
-    | (xs, c1, c2, r)::add_args ->
+    | (xs, ls, c1, c2, r)::add_args ->
       log_string @@ "make_bounds': " ^ Id.to_string r;
       let gen_ids =
         Option.value (Hashtbl.find_opt generated_ids extra_arg_name) ~default:[] in
@@ -375,7 +388,7 @@ ref
           xs in
       (* TDOO: *)
       id_type_map := IdMap.add !id_type_map ({r with Id.ty=Type.TyInt}) (Hflz_util.VTVarMax (List.map to_int_type xs |> Hflmc2_util.remove_duplicates (=)));
-      let bounds = make_bounds simplifier xs c1 c2 r in
+      let bounds = make_bounds simplifier xs ls c1 c2 r in
       T.Forall (r, Or (bounds, go add_args))
     | [] ->
       body
@@ -428,22 +441,74 @@ let get_occuring_arith_terms phi added_vars =
       xs
       |> List.filter (fun a -> a <> Arith.Int 0)
       |> List.map (fun a -> (a, get_occurring_arith_vars a))
-    | LsExpr _ -> []
+    | LsExpr ls -> get_occurring_arith_from_lsexpr ls
     | Pred(_, xs, ls) ->
       let v1 = xs
         |> List.filter (fun a -> a <> Arith.Int 0)
         |> List.map (fun a -> (a, get_occurring_arith_vars a)) in
-      let v2 = ls |> List.map (fun a -> (a, get_occurring_arith_vars2 a)) in
+      let v2 = ls |> List.concat_map (fun a -> get_occurring_arith_from_lsexpr a) in
       v1
   and get_occurring_arith_vars phi = match phi with
     | Int _ -> []
     | Var v -> [Id.remove_ty v]
     | Op (_, xs) -> List.map get_occurring_arith_vars xs |> List.concat
-  and get_occurring_arith_vars2 phi = match phi with
-    | Cons (hd, tl) -> 
+    | Size ls -> get_occurring_vars_from_lsexpr ls
+  and get_occurring_vars_from_lsexpr phi = match phi with
+    | Arith.Cons (hd, tl) -> 
         let v1 = get_occurring_arith_vars hd in
-        let v2 = get_occurring_arith_vars2 tl in
-        List.append v1 v2
+        let v2 = get_occurring_vars_from_lsexpr tl in
+        v1 @ v2
+    | _ -> []
+  and get_occurring_arith_from_lsexpr phi = match phi with
+    | Cons (hd, tl) -> 
+        let v1 = go_hflz (Arith hd) in
+        let v2 = go_hflz (LsExpr tl) in
+        v1 @ v2
+    | _ -> []
+  in
+  go_hflz phi |> List.map fst
+
+let get_occuring_lsexprs phi added_vars = 
+    (* print_endline "get_occuring_arith_terms phi:";
+      print_endline @@ show_pt_thflz phi; *)
+  (* remove expressions that contain locally bound variables *)
+  let remove ls x =
+    List.filter (fun (_, vars) -> not @@ List.exists ((=) (Id.remove_ty x)) vars) ls
+  in
+  let rec go_hflz phi = match phi with
+    | T.Bool _ -> []
+    | Var _ -> [] (* use only arithmetic variable *)
+    | Or (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
+    | And (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
+    | Abs (x, p1, _) -> remove (go_hflz p1) x
+    | Forall (x, p1) -> remove (go_hflz p1) x
+    | Exists (x, p1) -> remove (go_hflz p1) x
+    | App (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
+    | Arith a -> get_occurring_lsexpr_from_arith a
+    | Pred (Lt, [Var s; _], []) when List.exists (fun v -> Id.eq v s) added_vars ->
+      (* for added variables for ho-variables, add nothing *)
+      []
+    | LsExpr l -> [(l, get_occurring_lsexpr_vars l)]
+    | Pred(_, xs, ls) ->
+      let v1 = xs |> List.concat_map (fun a -> get_occurring_lsexpr_from_arith a) in
+      let v2 = ls |> List.map (fun a -> (a, get_occurring_lsexpr_vars a)) in
+      v1 @ v2
+  and get_occurring_lsexpr_from_arith a = match a with
+    | Int _ -> []
+    | Var _ -> []
+    | Op (_, xs) -> List.map get_occurring_lsexpr_from_arith xs |> List.concat
+    | Size ls -> go_hflz (LsExpr ls)
+  and get_occurring_lvar_from_arith a = match a with
+    | Arith.Int _ -> []
+    | Var _ -> []
+    | Op (_, xs) -> List.map get_occurring_lvar_from_arith xs |> List.concat
+    | Size ls -> get_occurring_lsexpr_vars ls
+  and get_occurring_lsexpr_vars phi = match phi with
+    | LVar v -> [Id.remove_ty v]
+    | Cons (hd, tl) -> 
+        let v1 = get_occurring_lvar_from_arith hd in
+        let v2 = get_occurring_lsexpr_vars tl in
+        v1 @ v2
     | _ -> []
   in
   go_hflz phi |> List.map fst
@@ -484,6 +549,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
   (* let simplifier = Simplify.simplify in *)
   let id_type_map = ref IdMap.empty in  (* 整数変数 -> その「タイプ」 *)
   let id_ho_map = ref [] in  (* 高階の変数 -> その情報を持つ整数変数 *)
+  let id_list = ref [] in (* リストの変数の集合 *)
   let rec go_app body ps = match ps with
     | p::ps ->
       T.App (go_app body ps, p)
@@ -500,26 +566,28 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
   let rec go
       (global_env : (ptype2 Id.t * will_create_bound * ptype2) list)
       (rho : (ptype' Id.t * ptype' Id.t) list)
-      (phi : ptype2 thflz2) : ptype' T.thflz * ptype' * (((ptype' Id.t, ptype' Id.t) Arith.gen_t list * int * int * ptype' Id.t) list) = match phi with
+      (phi : ptype2 thflz2) : ptype' T.thflz * ptype' * (((ptype' Id.t, ptype' Id.t) Arith.gen_t list * (ptype' Id.t, ptype' Id.t) Arith.gen_lt list * int * int * ptype' Id.t) list) = match phi with
     | Abs (xs, psi, ty) -> begin
-      let argty_tags, _ =
+      let argty_tags, _ = (* 引数に現れるタグたち example: ty = (int,T) -> (list, F) -> bool ==> [(int, T), (list, F)] *)
         match ty with
         | TFunc (argty_tags, tybody) -> argty_tags, tybody
         | _ -> assert false in
       let will_add = List.exists (fun (ty, t) -> should_add ty t) argty_tags in
-      let xs = List.map (fun x -> { x with Id.ty = convert_ty' x.Id.ty }) xs in
+      id_list := List.append !id_list (List.filter (fun x -> x.Id.ty = TList) xs);
+      let xs = List.map (fun x -> { x with Id.ty = convert_ty' x.Id.ty }) xs in (* 引数の変数リスト(型は変換済み) *)
+      (* List.iter (fun id -> print_endline @@ Id.to_string id) xs; *)
       if will_add then begin
         (* add param *)
         let k = id_gen ~name:extra_param_name TInt' in
         let psi, ty, add_args =
           let rho' =
             List.filter_map
-              (fun (x, (ty, t)) ->
-                if should_add ty t then
+              (fun (x, (ty, flag)) ->
+                if should_add ty flag then
                   Some (x, k)
                 else None
               )
-              (List.combine xs argty_tags)
+              (List.combine xs argty_tags) (* 引数の変数リスト(id, (type, flag)) *)
             in
           go global_env (rho' @ rho) psi in
         let psi = make_bounds_if_body_is_bool simplifier id_type_map psi ty add_args in
@@ -551,17 +619,17 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
       let ps_ = List.map (fun (p, _, _) -> p) ps' in
       let ty2s = List.map (fun (_, ty, _) -> ty) ps' in
       let add_args2 = List.map (fun (_, _, a) -> a) ps' |> List.flatten in
-      let will_add = List.exists (fun (ty, t) -> should_add ty t) argty_tags in
+      let will_add = List.exists (fun (ty, t) -> should_add ty t) argty_tags in (* HO vars only *)
       (* print_endline "phi 3";
       print_endline @@ show_pt_thflz2 phi;
       print_endline "argty (entry)";
       print_endline @@ show_ptype' ty1;
       print_endline "ty2 (entry)";
-      List.iter (fun ty2 -> print_endline @@ show_ptype' ty2) ty2s; *)
+      List.iter (fun ty2 -> print_endline @@ show_ptype' ty2) ty2s;
+      print_endline @@ if will_add then "true" else "false"; *)
       if will_add then begin
         (* add arg *)
-        let xs : (ptype' Id.t, ptype' Id.t) Arith.gen_t list =
-          let fvs =
+        let fvs =
             List.filter_map
               (fun (p, (ty, tag)) ->
                 if should_add ty tag then
@@ -572,6 +640,8 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
               (List.combine ps_ argty_tags)
             |> List.flatten
           in
+        (* List.iter (fun id -> print_endline @@ Id.to_string id) fvs; *)
+        let xs : (ptype' Id.t, ptype' Id.t) Arith.gen_t list =
           (List.filter_map
             (fun fv ->
               match fv.Id.ty with
@@ -581,7 +651,21 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
                 | Some (_, i) -> Some (Var i)
                 | None -> None
               end
-              | TBool' -> None
+              | _ -> None
+            )
+            fvs)
+          in
+        let ls : (ptype' Id.t, ptype' Id.t) Arith.gen_lt list =
+          (List.filter_map
+            (fun fv ->
+              match fv.Id.ty with
+              | TList' -> Some (Arith.LVar fv)
+              | TFunc' _ -> begin
+                match List.find_opt (fun (id, _) -> Id.eq id fv) rho with
+                | Some (_, i) -> Some (Arith.LVar i)
+                | None -> None
+              end
+              | _ -> None
             )
             fvs)
           in
@@ -607,6 +691,19 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
             (List.combine ps_ argty_tags)
           |> List.flatten)
         in
+        let ls =
+          ls @
+          (List.filter_map
+            (fun (p, (ty, tag)) ->
+              if ty = TList then begin
+                let added_vars = IdMap.keys !id_type_map in
+                Some (get_occuring_lsexprs p added_vars)
+              end else
+                None
+            )
+            (List.combine ps_ argty_tags)
+          |> List.flatten)
+        in
         let r = id_gen ~name:extra_arg_name TInt' in
         let bodyty =
           let rec go_app ty1 ty2s = match ty1, ty2s with
@@ -624,7 +721,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
         in
         go_app (App (p1, Arith (Var r))) (List.rev ps_),
         bodyty,
-        ((xs, c1, c2, r) :: add_args1 @ add_args2)
+        ((xs, ls, c1, c2, r) :: add_args1 @ add_args2)
       end else begin
         let bodyty =
           let rec go_app ty1 ty2s = match ty1, ty2s with
@@ -667,7 +764,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
             (fst, snd, xs) :: (go bodyty bodyty')
           end
           | TBool, TBool -> []
-          | TInt, TInt | TVar _, TVar _ -> assert false
+          | TInt, TInt | TList, TList | TVar _, TVar _ -> assert false
           | _ -> assert false in
         (* go outer_ty inner_ty *)
         let params = go v.ty vt' in

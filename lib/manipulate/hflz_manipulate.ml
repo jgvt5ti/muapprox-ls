@@ -165,7 +165,7 @@ let decompose_lambda_ (phi : Type.simple_ty Hflz.t) (rule_id : Type.simple_ty Id
       | [] -> body in
     go @@ List.rev quants in
   let rec go quant_acc phi = match phi with
-    | Var _ | Bool _ | Arith _ |  Pred _ -> mk_quant quant_acc phi
+    | Var _ | Bool _ | Arith _ | LsExpr _ | Pred _ -> mk_quant quant_acc phi
     | Or (phi1,phi2) -> mk_quant quant_acc @@ Or(go [] phi1, go [] phi2)
     | And(phi1,phi2) -> mk_quant quant_acc @@ And(go [] phi1, go [] phi2)
     | App(phi1,phi2) -> mk_quant quant_acc @@ App(go [] phi1, go [] phi2)
@@ -563,6 +563,7 @@ let encode_body_exists_formula new_pred_name_cand coe1 coe2 hes_preds hfl id_typ
     end
     | App (f1, f2) -> App (go env hes_preds f1, go env hes_preds f2)
     | Arith t -> Arith t
+    | LsExpr a -> LsExpr a
     | Pred (p, t, l) -> Pred (p, t, l) in
   let hfl = go [] hes_preds hfl in
   hfl, !new_rules
@@ -871,12 +872,12 @@ let replace_occurences
     | Abs(x, f1) -> Abs(x, go (x::env) [] f1)
     | Forall(x, f1) -> Forall (x, go (x::env) [] f1)
     | Exists(x, f1) -> Exists (x, go (x::env) [] f1)
-    | Bool _ | Pred _ | Arith _ | Var _ -> fml in
+    | Bool _ | Pred _ | Arith _ | LsExpr _ | Var _ -> fml in
   go [] [] fml
 
 let remove_duplicate_bounds z3_path (phi : Type.simple_ty Hflz.t) =
   let rec go phi = match phi with
-    | Bool _ | Var _ | Arith _ | Pred _ -> phi
+    | Bool _ | Var _ | Arith _ | LsExpr _ | Pred _ -> phi
     | Or (p1, p2) -> begin
       (* remove duplicate of the form "pred_1 || pred_2 || ... || pred_n" *)
       let rec sub phi = match phi with
@@ -933,7 +934,7 @@ let substitute_arith a (before, after) =
     
 let remove_redundant_bounds id_type_map (phi : Type.simple_ty Hflz.t) =
   let rec go phi = match phi with
-    | Bool _ | Var _ | Arith _ | Pred _ -> phi
+    | Bool _ | Var _ | Arith _ | LsExpr _ | Pred _ -> phi
     | Or (p1, p2) -> begin
       let rec sub phi = match phi with
         | Pred (_, [_; _], _) -> [phi]
