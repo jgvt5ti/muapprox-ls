@@ -388,7 +388,12 @@ let subst_arith_var replaced formula =
   let rec go_arith arith = match arith with
     | Arith.Int _ -> arith
     | Arith.Op (x, xs) -> Arith.Op(x, List.map go_arith xs)
-    | Arith.Var x -> replaced x in
+    | Arith.Var x -> replaced x
+    | Arith.Size ls -> Size (go_lsexpr ls)
+  and go_lsexpr ls = match ls with
+    | Arith.Cons (hd, tl) -> Cons(go_arith hd, go_lsexpr tl)
+    | _ -> ls 
+  in
   let rec go_formula formula = match formula with
     | Bool _ | Var _ -> formula
     | Or (f1, f2) -> Or(go_formula f1, go_formula f2)
@@ -398,7 +403,8 @@ let subst_arith_var replaced formula =
     | Exists (x, f1) -> Exists(x, go_formula f1)
     | App (f1, f2) -> App(go_formula f1, go_formula f2)
     | Arith t -> Arith (go_arith t)
-    | Pred (x, f1, f2) -> Pred (x, List.map go_arith f1, f2) in
+    | LsExpr l -> LsExpr (go_lsexpr l)
+    | Pred (x, f1, f2) -> Pred (x, List.map go_arith f1, List.map go_lsexpr f2) in
   go_formula formula
 
 let rec to_tree seq f b = match seq with
@@ -458,11 +464,11 @@ let encode_body_exists_formula_sub
       end
     ), hfl in
   let guessed_terms =
-    print_endline @@ "[encode_body_exists_formula_sub.guessed_conditions] body: " ^ show_hflz hfl;
-    print_endline @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_ho_map;
+    log_string @@ "[encode_body_exists_formula_sub.guessed_conditions] body: " ^ show_hflz hfl;
+    log_string @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_ho_map;
     let id_type_map' = to_id_ho_map_from_id_type_map id_type_map in
-    print_endline "id_type_map' (exists)";
-    print_endline @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_type_map';
+    log_string "id_type_map' (exists)";
+    log_string @@ Hflmc2_util.show_list (fun (t, id) -> "(" ^ t.Id.name ^ ", " ^ id.Id.name ^ ")") id_type_map';
     let guessed_terms =
       get_guessed_terms id_type_map [hfl] (if use_all_scoped_variables then env else []) (id_ho_map @ id_type_map')
       |> List.map (fun arith_t ->
@@ -476,7 +482,7 @@ let encode_body_exists_formula_sub
       )
       |> List.concat
       |> Hflmc2_util.remove_duplicates (=) in
-    print_endline @@ "guessed_terms: " ^ (List.map (fun rr -> (show_hflz (Arith rr))) guessed_terms |> String.concat ",");
+    log_string @@ "guessed_terms: " ^ (List.map (fun rr -> (show_hflz (Arith rr))) guessed_terms |> String.concat ",");
     guessed_terms in
   let formula_type_vars = Hflz_util.get_hflz_type hfl |> to_args |> List.rev in
   (* get free variables *)

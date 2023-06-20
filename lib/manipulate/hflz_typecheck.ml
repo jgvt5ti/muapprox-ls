@@ -109,8 +109,8 @@ and type_check_lsexpr : ty_env -> Arith.lt -> bool = fun env lsarith ->
     | Some {Id.ty=ty'; _} ->
       if ty' = Type.TyList
       then true
-      else failwith @@ "[Arith] var `" ^ show_id v ^ "`'s type should be Int, but actual: " ^ show_arg ty' ^ "."
-    | None -> failwith @@ "[Arith] unbound var `" ^ show_id v ^ "`' "
+      else failwith @@ "[LsExpr] var `" ^ show_id v ^ "`'s type should be List, but actual: " ^ show_arg ty' ^ "."
+    | None -> failwith @@ "[LsExpr] unbound var `" ^ show_id v ^ "`' "
   end
   | Arith.Cons (hd, tl) ->
     (type_check_arith env hd) && go tl in

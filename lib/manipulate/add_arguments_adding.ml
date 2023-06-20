@@ -660,11 +660,6 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
             (fun fv ->
               match fv.Id.ty with
               | TList' -> Some (Arith.LVar fv)
-              | TFunc' _ -> begin
-                match List.find_opt (fun (id, _) -> Id.eq id fv) rho with
-                | Some (_, i) -> Some (Arith.LVar i)
-                | None -> None
-              end
               | _ -> None
             )
             fvs)
@@ -694,7 +689,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
         let ls =
           ls @
           (List.filter_map
-            (fun (p, (ty, tag)) ->
+            (fun (p, (ty, _)) ->
               if ty = TList then begin
                 let added_vars = IdMap.keys !id_type_map in
                 Some (get_occuring_lsexprs p added_vars)
