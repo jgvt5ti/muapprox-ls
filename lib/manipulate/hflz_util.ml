@@ -355,10 +355,15 @@ let get_hflz_size_sub phi =
     | Exists (_, p) -> go p + 1
     | App (p1, p2) -> go p1 + go p2 + 1
     | Arith a -> go_arith a
-    | Pred (_, as', ls') -> (List.map go_arith as' |> sum) + 1
+    | LsExpr a -> go_lsexpr a
+    | Pred (_, as', ls') -> (List.map go_arith as' |> sum) + (List.map go_lsexpr ls' |> sum) + 1
   and go_arith a = match a with
     | Var _ | Int _ -> 1
     | Op (_, as') -> (List.map go_arith as' |> sum) + 1
+    | Size l -> go_lsexpr l + 1
+  and go_lsexpr a = match a with
+    | LVar _ | Nil _ -> 1
+    | Cons (hd, tl) -> go_arith hd + go_lsexpr tl + 1
   in
   go phi
 

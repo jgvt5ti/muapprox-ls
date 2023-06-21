@@ -71,7 +71,8 @@ let abbrev_variable_numbers (env : 'a Type.arg Env.t) (phi : 'a Hflz.t) =
     | And (p1, p2) -> And (go env p1, go env p2)
     | App (p1, p2) -> App (go env p1, go env p2)
     | Arith a -> Arith (go_arith env a)
-    | Pred (p, a, ls) -> Pred (p, List.map (go_arith env) a, ls)
+    | LsExpr a -> LsExpr (go_lsexpr env a)
+    | Pred (p, a, ls) -> Pred (p, List.map (go_arith env) a, List.map (go_lsexpr env) ls)
   and go_arith (env : 'a Type.arg Env.t) (a : Arith.t) : Arith.t =
     match a with
     | Int i -> Int i
@@ -80,11 +81,25 @@ let abbrev_variable_numbers (env : 'a Type.arg Env.t) (phi : 'a Hflz.t) =
       | Some new_id -> begin
         match new_id.ty with
         | TyInt -> Var { new_id with ty = `Int }
-        | TySigma _ -> failwith "go_arith"
+        | _ -> failwith "go_arith"
       end
       | None -> failwith @@ "(abbrev_variable_numbers) unbounded variable: " ^ v.name ^ " (" ^ string_of_int v.id ^ ", env: " ^ (Hflmc2_util.show_list (fun {Env.old_id; _} -> Id.to_string old_id) env) ^ ")"
     end
     | Op (op, a) -> Op (op, List.map (go_arith env) a)
+    | Size l -> Size (go_lsexpr env l)
+  and go_lsexpr (env : 'a Type.arg Env.t) (a : Arith.lt) : Arith.lt =
+    match a with
+    | Nil -> Nil
+    | LVar v -> begin
+      match Env.lookup_by_old_id env v with
+      | Some new_id -> begin
+        match new_id.ty with
+        | TyList -> LVar { new_id with ty = `List }
+        | _ -> failwith "go_lsexpr"
+      end
+      | None -> failwith @@ "(abbrev_variable_numbers) unbounded variable: " ^ v.name ^ " (" ^ string_of_int v.id ^ ", env: " ^ (Hflmc2_util.show_list (fun {Env.old_id; _} -> Id.to_string old_id) env) ^ ")"
+    end
+    | Cons (hd, tl) -> Cons (go_arith env hd, go_lsexpr env tl)
   in
   (* log_string "abbrev_variable_numbers:";
   log_string @@ Print_syntax.show_hflz phi; *)

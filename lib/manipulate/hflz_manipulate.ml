@@ -1022,7 +1022,10 @@ let get_occurring_variables_in_arith a =
     | Arith.Var v -> [v]
     | Op (_, xs) -> List.map go xs |> List.flatten
     | Int _ -> []
-  in
+    | Size l -> go_ls l
+  and go_ls a = match a with
+    | Cons (hd, tl) -> go hd @ go_ls tl
+    | _ -> [] in
   go a
   
 let substitute_arith a (before, after) =
@@ -1032,6 +1035,10 @@ let substitute_arith a (before, after) =
     end
     | Int i -> Int i
     | Op (op, xs) -> Op (op, List.map go xs)
+    | Size l -> Size (go_ls l)
+  and go_ls a = match a with
+    | Cons (hd, tl) -> Cons(go hd, go_ls tl)
+    | _ -> a
   in
   go a
       

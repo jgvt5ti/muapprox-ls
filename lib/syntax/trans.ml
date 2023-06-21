@@ -43,6 +43,8 @@ module Subst = struct
         | TyBool fs -> TyBool (List.map fs ~f:(formula env))
         | TyArrow({ty=TyInt;_} as x, ty) ->
             TyArrow(x, abstraction_ty (IdMap.remove env x) ty)
+        | TyArrow({ty=TyList;_} as x, ty) ->
+            TyArrow(x, abstraction_ty (IdMap.remove env x) ty)
         | TyArrow({ty=TySigma ty_arg;_} as y, ret_ty) ->
             TyArrow({y with ty = TySigma (abstraction_ty env ty_arg)},
                     abstraction_ty env ret_ty)
@@ -127,7 +129,17 @@ module Subst = struct
             | _ -> assert false
             end
         | Op(op, as') -> Op(op, List.map ~f:(arith env) as')
-        | Size ls -> Size ls
+        | Size ls -> Size (lsexpr env ls)
+    and lsexpr : 'ty S.Hflz.t env -> S.Arith.lt -> S.Arith.lt =
+      fun env a -> match a with
+        | Nil -> a
+        | LVar x ->
+            begin match IdMap.find env x with
+            | None -> a
+            | Some (LsExpr a') -> a'
+            | _ -> assert false
+            end
+        | Cons(hd, tl) -> Cons(arith env hd, lsexpr env tl)
 
     let rec rename_binding_if_necessary (env : IdSet.t) (phi : 'ty S.Hflz.t): 'ty S.Hflz.t =
       let open S in
@@ -202,8 +214,10 @@ module Subst = struct
           Exists(x, hflz_ (IdMap.remove s_env x) (IdSet.add b_env x) t)
         | Arith a        ->
           Arith (arith s_env a)
+        | LsExpr a        ->
+          LsExpr (lsexpr s_env a)
         | Pred (p,as', ls')   ->
-          Pred(p, List.map ~f:(arith s_env) as', ls')
+          Pred(p, List.map ~f:(arith s_env) as',  List.map ~f:(lsexpr s_env) ls')
         | Bool _         -> phi
       in
       hflz_ env_ IdSet.empty phi
