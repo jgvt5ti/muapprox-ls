@@ -787,6 +787,7 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
                 (fun x ->
                   match x.Id.ty with
                   | TInt' -> T.Arith (Var {x with ty=TInt'})
+                  | TList' -> T.LsExpr (LVar {x with ty=TList'})
                   | _ -> Var x
                 )
                 xs in
