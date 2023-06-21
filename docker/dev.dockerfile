@@ -63,7 +63,7 @@ RUN eval $(opam env) && opam install oUnit ocamlgraph ppx_deriving_yojson z3 zar
 RUN eval $(opam env) && dune build main.exe
 
 
-ENV katsura_solver_path=$ROOT_PATH/hflmc2_mora/_build/default/bin/main.exe \
+ENV katsura_solver_path=$ROOT_PATH/hflmc2-ls/_build/default/bin/main.exe \
     fptprove=$ROOT_PATH/fptprove
 
 ENV CMD_PATH /usr/bin/muapprox_main

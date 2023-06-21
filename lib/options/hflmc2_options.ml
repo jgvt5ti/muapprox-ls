@@ -66,7 +66,7 @@ type params =
   ; solver : string [@default "katsura"]
   (** Choose background nu-only-HFLz solver. Available: katsura, iwayama, suzuki, mochi *)
   
-  ; backend_solver : string [@default ""]
+  ; backend_solver : string [@default "eldarica"]
   (** --solver option on the backend solver. (only used in the katsura solver) *)
   
   ; first_order_solver : bool [@default false]

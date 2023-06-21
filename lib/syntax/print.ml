@@ -170,13 +170,13 @@ let lsexpr : Arith.lt Fmt.t = lsexpr_ Prec.zero
 let pred : Formula.pred t =
   fun ppf pred -> match pred with
     | Eq  -> Fmt.string ppf "="
-    | Neq -> Fmt.string ppf "/="
+    | Neq -> Fmt.string ppf "<>"
     | Le  -> Fmt.string ppf "<="
     | Ge  -> Fmt.string ppf ">="
     | Lt  -> Fmt.string ppf "<"
     | Gt  -> Fmt.string ppf ">"
     | Eql  -> Fmt.string ppf "=l"
-    | Neql -> Fmt.string ppf "/=l"
+    | Neql -> Fmt.string ppf "<>l"
 let pred_ : Formula.pred t_with_prec =
   ignore_prec pred
 
