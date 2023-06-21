@@ -1,0 +1,13 @@
+forall (ls4 : list).size ls4 < 2 \/ Exists113 ls4
+s.t.
+Exists113 (ls4 : list) : bool =nu ((forall (sssss8787 : int).sssss8787 < 1 * size ls4 + 1 \/ sssss8787 < 1 \/ G sssss8787 ls4 A) \/ (forall (sssss8787 : int).sssss8787 < 1 * size ls4 + 1 \/ sssss8787 < 1 \/ G sssss8787 ls4 A) \/ Exists113 (0 :: ls4) \/ Exists113 (1 :: ls4)) /\ size ls4 >= 0;
+A (n5 : int) : bool =mu false;
+G (ttttt8888 : int) (ls6 : list) (k7 : int -> bool) : bool =nu forall (hd8 : int).forall (tl9 : list).size tl9 < 2 + 1 * ttttt8888 \/ size tl9 < 2 + (-1) * ttttt8888 \/ size tl9 < 2 + 1 * 1 \/ size tl9 < 2 + (-1) * 1 \/ size tl9 < 2 \/ hd8 < 2 + 1 * ttttt8888 \/ hd8 < 2 + (-1) * ttttt8888 \/ hd8 < 2 + 1 * 1 \/ hd8 < 2 + (-1) * 1 \/ hd8 < 2 \/ G_e114 hd8 tl9 ls6 k7 ttttt8888;
+G_e114 (hd8 : int) (tl9 : list) (ls6 : list) (k7 : int -> bool) (ttttt8888 : int) : bool =nu
+  (ls6 =l [] /\ k7 0 \/ ls6 =l hd8 :: tl9 /\ (hd8 = 0 /\ (forall (sssss8989 : int).sssss8989 < 1 * size tl9 + 1 \/ sssss8989 < 1 \/ G sssss8989 tl9 A) \/ hd8 = 1 /\ (forall (sssss9090 : int).sssss9090 < 1 * size (0 :: tl9) + 1 \/ sssss9090 < 1 \/ G sssss9090 (0 :: tl9) A)) \/ ls6 =l [] /\ k7 0 \/ ls6 =l hd8 :: tl9 /\ (hd8 = 0 /\ (forall (sssss8989 : int).sssss8989 < 1 * size tl9 + 1 \/ sssss8989 < 1 \/ G sssss8989 tl9 A) \/ hd8 = 1 /\ (forall (sssss9090 : int).sssss9090 < 1 * size (0 :: tl9) + 1 \/ sssss9090 < 1 \/ G sssss9090 (0 :: tl9) A)) \/ ls6 =l [] /\ k7 0 \/ ls6 =l (-hd8) :: tl9 /\ (-hd8 = 0 /\ (forall (sssss8989 : int).sssss8989 < 1 * size tl9 + 1 \/ sssss8989 < 1 \/ G sssss8989 tl9 A) \/ -hd8 = 1 /\ (forall (sssss9090 : int).sssss9090 < 1 * size (0 :: tl9) + 1 \/ sssss9090 < 1 \/ G sssss9090 (0 :: tl9) A))
+   \/ ls6 =l [] /\ k7 0 \/ ls6 =l (-hd8) :: tl9 /\ (-hd8 = 0 /\ (forall (sssss8989 : int).sssss8989 < 1 * size tl9 + 1 \/ sssss8989 < 1 \/ G sssss8989 tl9 A) \/ -hd8 = 1 /\ (forall (sssss9090 : int).sssss9090 < 1 * size (0 :: tl9) + 1 \/ sssss9090 < 1 \/ G sssss9090 (0 :: tl9) A))
+   \/ G_e114 (hd8 - 1) tl9 ls6 k7 ttttt8888
+   \/ G_e114 hd8 (0 :: tl9) ls6 k7 ttttt8888
+   \/ G_e114 (hd8 - 1) tl9 ls6 k7 ttttt8888
+   \/ G_e114 hd8 (1 :: tl9) ls6 k7 ttttt8888)
+  /\ hd8 >= 0 /\ size tl9 >= 0;

@@ -439,6 +439,30 @@ let subst_arith_var replaced formula =
     | Pred (x, f1, f2) -> Pred (x, List.map go_arith f1, List.map go_lsexpr f2) in
   go_formula formula
 
+let subst_lsexpr_var replaced formula =
+  let rec go_arith arith = match arith with
+    | Arith.Int _ -> arith
+    | Arith.Op (x, xs) -> Arith.Op(x, List.map go_arith xs)
+    | Arith.Var _ -> arith
+    | Arith.Size ls -> Size (go_lsexpr ls)
+  and go_lsexpr ls = match ls with
+    | Arith.Cons (hd, tl) -> Cons(go_arith hd, go_lsexpr tl)
+    | Arith.LVar v -> replaced v
+    | Arith.Nil -> ls
+  in
+  let rec go_formula formula = match formula with
+    | Bool _ | Var _ -> formula
+    | Or (f1, f2) -> Or(go_formula f1, go_formula f2)
+    | And (f1, f2) -> And(go_formula f1, go_formula f2)
+    | Abs (x, f1) -> Abs(x, go_formula f1)
+    | Forall (x, f1) -> Forall(x, go_formula f1)
+    | Exists (x, f1) -> Exists(x, go_formula f1)
+    | App (f1, f2) -> App(go_formula f1, go_formula f2)
+    | Arith t -> Arith (go_arith t)
+    | LsExpr l -> LsExpr (go_lsexpr l)
+    | Pred (x, f1, f2) -> Pred (x, List.map go_arith f1, List.map go_lsexpr f2) in
+  go_formula formula
+
 let rec to_tree seq f b = match seq with
   | [] -> b
   | x::xs -> f x (to_tree xs f b)
@@ -542,13 +566,13 @@ let encode_body_exists_formula_sub
       bound_vars
       |> List.rev
       |> List.map (fun bound_var ->
-        if bound_var.Id.ty = TyInt then
-          make_approx_formula
-            {bound_var with ty=`Int}
-            guessed_conditions
-        else
+        if bound_var.Id.ty = TyList then
           make_approx_formula_ls
             {bound_var with ty=`List}
+            guessed_conditions
+        else
+          make_approx_formula
+            {bound_var with ty=`Int}
             guessed_conditions
       ) in
     rev_abs (
@@ -575,14 +599,21 @@ let encode_body_exists_formula_sub
               go (acc |>
                   List.map (fun hfl -> 
                     hfl::[
-                      subst_arith_var
-                        (fun vid -> if x.Id.ty = TyInt && Id.eq vid x then (Arith.Op (Sub, [Int 0; Var {x with ty=`Int}])) else Var vid) hfl]) |>
+                      if x.Id.ty = TyList then begin
+                        subst_lsexpr_var
+                          (fun vid -> if Id.eq vid x then LVar {x with ty=`List} else LVar vid) hfl
+                      end else begin
+                        subst_arith_var
+                          (fun vid -> if Id.eq vid x then (Arith.Op (Sub, [Int 0; Var {x with ty=`Int}])) else Var vid) hfl
+                      end
+                    ])
+                  |>
                   List.flatten)
                   xs in
           let terms1 =
             (go [hfl] bound_vars)
             |> List.map (fun f -> args_ids_to_apps formula_type_vars f) in
-          let terms2 = (* Exist (n - 1) , Exist (tail ls) *)
+          let terms2 n = (* Exist (n - 1) , Exist (tail ls) *)
             bound_vars |>
             List.map (fun var ->
               arg_vars
@@ -590,21 +621,21 @@ let encode_body_exists_formula_sub
                 if v.Id.ty = TyInt && Id.eq v var then
                   Arith (Op (Sub, [Var {v with ty=`Int}; Int 1])) 
                 else if v.Id.ty = TyList && Id.eq v var then
-                  LsExpr (LVar {v with ty=`List}) (* TODO *)
+                  LsExpr (Cons (Int n, LVar {v with ty=`List}))
                 else arg_id_to_var v
               end
               |> List.fold_left
                 (fun acc t -> App (acc, t))
                 (Var new_pvar)
               ) in
-          (terms1 @ terms2) |> formula_fold (fun acc f -> Or (acc, f))),
+          (terms1 @ terms2 0 @ terms2 1) |> formula_fold (fun acc f -> Or (acc, f))),
           bound_vars
           |> List.map begin
               fun var ->
-                if var.Id.ty = TyInt then
-                  Pred (Ge, [Var {var with ty=`Int}; Int 0], [])
-                else
+                if var.Id.ty = TyList then
                   Pred (Ge, [Size (LVar {var with ty=`List}); Int 0], [])
+                else
+                  Pred (Ge, [Var {var with ty=`Int}; Int 0], [])
             end
           |> formula_fold (fun acc f -> And (acc, f))
         )

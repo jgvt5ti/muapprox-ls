@@ -1,0 +1,16 @@
+MAIN__  =ν
+  ∃ls4.
+   (G : [{list,T},{[{int,_}] -> bool,T}] -> bool)
+    [list; (A : [{int,_}] -> bool)]
+A ([n5] : [{int,_}]) =μ false
+G ([ls6; k7] : [{list,T},{[{int,_}] -> bool,T}]) =ν
+  ∃hd8.
+   ∃tl9.
+    list /\ (k7 : [{int,_}] -> bool) [0]
+    \/ list
+       /\ (hd8 = 0
+           /\ (G : [{list,T},{[{int,_}] -> bool,T}] -> bool)
+               [list; (A : [{int,_}] -> bool)]
+           \/ hd8 = 1
+              /\ (G : [{list,T},{[{int,_}] -> bool,T}] -> bool)
+                  [list; (A : [{int,_}] -> bool)])

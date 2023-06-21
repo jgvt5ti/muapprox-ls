@@ -161,12 +161,12 @@ let fvs_with_type : 'ty t -> 'ty Type.arg Id.t list = fun hes ->
     | Forall(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
     | Exists(x, phi) -> List'.filter (fun t -> not @@ Id.eq t x) @@ go phi
     | Arith a        -> 
-      let (lfvs, afvs) = Arith.fvs a in
+      let (afvs, lfvs) = Arith.fvs a in
       let afvs = List'.map (fun id -> {id with Id.ty = Type.TyInt}) afvs in
       let lfvs = List'.map (fun id -> {id with Id.ty = Type.TyList}) lfvs in
       afvs @ lfvs
     | LsExpr l       ->
-      let (lfvs, afvs) = Arith.lfvs l in
+      let (afvs, lfvs) = Arith.lfvs l in
       let afvs = List'.map (fun id -> {id with Id.ty = Type.TyInt}) afvs in
       let lfvs = List'.map (fun id -> {id with Id.ty = Type.TyList}) lfvs in
       afvs @ lfvs
