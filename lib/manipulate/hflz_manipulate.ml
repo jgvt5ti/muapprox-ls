@@ -299,6 +299,51 @@ let get_occuring_arith_terms id_type_map phi =
   in
   go_hflz phi |> List.map fst
 
+let get_occuring_lsexprs id_type_map phi =
+  (* remove expressions that contain locally bound variables *)
+  let remove ls x =
+    List.filter (fun (_, vars) -> not @@ List.exists ((=) (Id.remove_ty x)) vars) ls
+  in
+  let rec go_hflz phi = match phi with
+    | Bool _ -> []
+    | Var _ -> [] (* use only arithmetic variable *)
+    | Or (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
+    | And (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
+    | Abs (x, p1) -> remove (go_hflz p1) x
+    | Forall (x, p1) -> remove (go_hflz p1) x
+    | Exists (x, p1) -> remove (go_hflz p1) x
+    | App (p1, p2) -> (go_hflz p1) @ (go_hflz p2)
+    | Arith a -> get_occurring_lsexpr_from_arith a
+    | LsExpr l -> [(l, get_occurring_lsexpr_vars l)]
+    | Pred (p, xs, ls) -> begin
+      match p, xs with
+      | Lt, [Var x; _] when Hflmc2_syntax.IdMap.mem id_type_map (Id.remove_ty x) -> []
+      | _ -> 
+        let v1 = List.concat_map (fun a -> get_occurring_lsexpr_from_arith a) xs in
+        let v2 = List.map (fun a -> (a, get_occurring_lsexpr_vars a)) ls in
+        v1 @ v2
+    end
+  and get_occurring_lsexpr_from_arith a = match a with
+    | Int _ -> []
+    | Var _ -> []
+    | Op (_, xs) -> List.map get_occurring_lsexpr_from_arith xs |> List.concat
+    | Size ls -> go_hflz (LsExpr ls)
+  and get_occurring_lvar_from_arith a = match a with
+    | Arith.Int _ -> []
+    | Var _ -> []
+    | Op (_, xs) -> List.map get_occurring_lvar_from_arith xs |> List.concat
+    | Size ls -> get_occurring_lsexpr_vars ls
+  and get_occurring_lsexpr_vars phi = match phi with
+    | LVar v -> [Id.remove_ty v]
+    | Cons (hd, tl) -> 
+        let v1 = get_occurring_lvar_from_arith hd in
+        let v2 = get_occurring_lsexpr_vars tl in
+        v1 @ v2
+    | _ -> []
+  in
+  go_hflz phi |> List.map fst
+
+(*
 let get_max_integer phi =
     let rec go_hflz phi = match phi with
     | Bool _ -> 0
@@ -325,6 +370,7 @@ let get_max_integer phi =
     | Nil -> 0
     | Cons (hd, tl) -> max (go_arith hd) (go_lsexpr tl)
   in go_hflz phi
+*)
 
 let get_guessed_terms
     (id_type_map : (unit Id.t, Hflz_util.variable_type, Hflmc2_syntax.IdMap.Key.comparator_witness) Base.Map.t)
@@ -344,8 +390,10 @@ let get_guessed_terms
   log_string "[get_guessed_terms] id_ho_map";
   log_string @@ Hflmc2_util.show_list (fun (var_obj, var_arith) -> Id.to_string var_obj ^ ": " ^ Id.to_string var_arith) id_ho_map;
   let open Hflmc2_syntax in
+  let ls = List.map (get_occuring_lsexprs id_type_map) arg_terms |> List.concat in
+  let sizes = List.map (fun ls -> Arith.Size ls) ls in
   let all_terms =
-    (List.map (get_occuring_arith_terms id_type_map) arg_terms |> List.concat) @
+    (List.map (get_occuring_arith_terms id_type_map) arg_terms |> List.concat) @ sizes @
     (List.filter_map
       (fun var -> match var.Id.ty with
         | Type.TyInt -> Some (Arith.Var {var with Id.ty = `Int})
