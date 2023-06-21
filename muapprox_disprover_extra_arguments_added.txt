@@ -1,5 +1,0 @@
-exists (ls4 : list).forall (sssss8787 : int).sssss8787 < 1 * size ls4 + 1 \/ sssss8787 < 1 \/ G sssss8787 ls4 A
-s.t.
-
-A (n5 : int) : bool =mu false;
-G (ttttt8888 : int) (ls6 : list) (k7 : int -> bool) : bool =nu exists (hd8 : int).exists (tl9 : list).ls6 =l [] /\ k7 0 \/ ls6 =l hd8 :: tl9 /\ (hd8 = 0 /\ (forall (sssss8989 : int).sssss8989 < 1 * size tl9 + 1 \/ sssss8989 < 1 \/ G sssss8989 tl9 A) \/ hd8 = 1 /\ (forall (sssss9090 : int).sssss9090 < 1 * size (0 :: tl9) + 1 \/ sssss9090 < 1 \/ G sssss9090 (0 :: tl9) A));

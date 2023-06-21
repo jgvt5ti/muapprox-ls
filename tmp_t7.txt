@@ -1,7 +1,0 @@
-MAIN__  =ν ∃ls4.G list{_} A{|}
-A (n5 : (int){|}) =μ false
-G (ls6 : (list){_}) (k7 : (int -|-> bool){|}) =ν
-  ∃hd8.
-   ∃tl9.
-    list /\ k7 0{|}
-    \/ list /\ (hd8 = 0 /\ G list{_} A{|} \/ hd8 = 1 /\ G list{_} A{|})
