@@ -286,9 +286,10 @@ let get_occuring_arith_terms id_type_map phi =
     | Size ls -> get_occurring_vars_from_lsexpr ls
   and get_occurring_vars_from_lsexpr phi = match phi with
     | Arith.Cons (hd, tl) -> 
-        let v1 = get_occurring_arith_vars hd in
+        []
+        (* let v1 = get_occurring_arith_vars hd in
         let v2 = get_occurring_vars_from_lsexpr tl in
-        v1 @ v2
+        v1 @ v2 *)
     | _ -> []
   and get_occurring_arith_from_lsexpr phi = match phi with
     | Arith.Cons (hd, tl) -> 
@@ -371,6 +372,12 @@ let get_max_integer phi =
     | Cons (hd, tl) -> max (go_arith hd) (go_lsexpr tl)
   in go_hflz phi
 *)
+
+let to_initial v =
+  if v.Id.ty = Type.TyInt then
+    Arith (Int 0)
+  else
+    LsExpr (Nil)
 
 let get_guessed_terms
     (id_type_map : (unit Id.t, Hflz_util.variable_type, Hflmc2_syntax.IdMap.Key.comparator_witness) Base.Map.t)
@@ -600,6 +607,22 @@ let encode_body_exists_formula_sub
     (List.map (fun term -> Hflz.fvs_with_type (Arith term)) guessed_terms |> List.flatten))
     |> List.filter (fun v -> not @@ List.exists (fun v' -> Id.eq v v') bound_vars) in
   let arg_vars = (bound_vars @ free_vars @ formula_type_vars) |> Hflmc2_util.remove_duplicates (Id.eq) in
+
+  let upperbound_var =
+    let i = Id.gen_id() in
+    let name = "ub" ^ string_of_int i in
+    { Id.name = name; ty = TyInt; id = i } in
+
+
+  let init_args = (upperbound_var :: arg_vars) |> List.map begin fun v -> 
+    if List.exists (fun x -> x.Id.id = v.Id.id) bound_vars then
+      to_initial v
+    else
+      arg_id_to_var v
+  end in
+  let bound_vars = upperbound_var :: bound_vars in
+  let arg_vars = upperbound_var :: arg_vars in
+
   let new_pvar =
     let i = Id.gen_id() in
     let name =
@@ -612,31 +635,22 @@ let encode_body_exists_formula_sub
         (fun x rem -> TyArrow (x, rem))
         (TyBool ()) in
     { Id.name = name; ty = ty; id = i } in
+
   let body =
     let guessed_conditions = get_guessed_conditions coe1 coe2 guessed_terms in
     (* 各要素が x < 1 + c \/ ... という形式 *)
-    let approx_formulas =
-      bound_vars
-      |> List.rev
-      |> List.map (fun bound_var ->
-        if bound_var.Id.ty = TyList then
-          make_approx_formula_ls
-            {bound_var with ty=`List}
-            guessed_conditions
-        else
-          make_approx_formula
-            {bound_var with ty=`Int}
-            guessed_conditions
-      ) in
+    let bound_condition =
+      make_approx_formula
+        {upperbound_var with ty=`Int}
+        guessed_conditions in
+
     rev_abs (
       (formula_type_vars |> List.rev |> to_abs') @@
-        to_tree
-        (bound_vars)
-        (fun x rem -> Forall (x, rem)) @@
+        Forall (upperbound_var,
           Or (
-            formula_fold (fun acc f -> Or(acc, f)) approx_formulas,
-            args_ids_to_apps arg_vars @@ (Var new_pvar)
-            )) in
+            bound_condition,
+            args_hfl_to_apps init_args @@ (Var new_pvar)
+            ))) in
     body,
     [{ 
       Hflz.var = new_pvar;
@@ -657,7 +671,7 @@ let encode_body_exists_formula_sub
                           (fun vid -> if Id.eq vid x then LVar {x with ty=`List} else LVar vid) hfl
                       end else begin
                         subst_arith_var
-                          (fun vid -> if Id.eq vid x then (Arith.Op (Sub, [Int 0; Var {x with ty=`Int}])) else Var vid) hfl
+                          (fun vid -> if Id.eq vid x && x <> upperbound_var then (Arith.Op (Sub, [Int 0; Var {x with ty=`Int}])) else Var vid) hfl
                       end
                     ])
                   |>
@@ -666,13 +680,13 @@ let encode_body_exists_formula_sub
           let terms1 =
             (go [hfl] bound_vars)
             |> List.map (fun f -> args_ids_to_apps formula_type_vars f) in
-          let terms2 n = (* Exist (n - 1) , Exist (tail ls) *)
-            bound_vars |>
+          let terms2 n = (* Exist (n + 1) , Exist (n :: ls) *)
+            (List.tl bound_vars) |>
             List.map (fun var ->
               arg_vars
               |> List.map begin fun v -> 
-                if v.Id.ty = TyInt && Id.eq v var then
-                  Arith (Op (Sub, [Var {v with ty=`Int}; Int 1])) 
+                if v.Id.ty = TyInt && Id.eq v var && v <> upperbound_var then
+                  Arith (Op (Add, [Var {v with ty=`Int}; Int 1])) 
                 else if v.Id.ty = TyList && Id.eq v var then
                   LsExpr (Cons (Int n, LVar {v with ty=`List}))
                 else arg_id_to_var v
@@ -682,13 +696,13 @@ let encode_body_exists_formula_sub
                 (Var new_pvar)
               ) in
           (terms1 @ terms2 0 @ terms2 1) |> formula_fold (fun acc f -> Or (acc, f))),
-          bound_vars
+          (List.tl bound_vars)
           |> List.map begin
               fun var ->
                 if var.Id.ty = TyList then
-                  Pred (Ge, [Size (LVar {var with ty=`List}); Int 0], [])
+                  Pred (Le, [Size (LVar {var with ty=`List}); Var {upperbound_var with ty=`Int}], [])
                 else
-                  Pred (Ge, [Var {var with ty=`Int}; Int 0], [])
+                  Pred (Le, [Var {var with ty=`Int}; Var {upperbound_var with ty=`Int}], [])
             end
           |> formula_fold (fun acc f -> And (acc, f))
         )
@@ -746,6 +760,7 @@ let encode_body_exists
     |> List.flatten in
   (* (entry, new_rules @ rules) |> (Hflz_util.with_rules Hflz_util.assign_unique_variable_id) *)
   let hes = (entry, new_rules @ rules) in
+  (* print_endline @@ show_hes Fmt.nop hes; *)
   Hflz_typecheck.type_check hes;
   hes
 
