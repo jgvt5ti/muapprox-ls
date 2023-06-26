@@ -72,7 +72,7 @@ type params =
   ; first_order_solver : bool [@default false]
   (** If true, use z3 or hoice to solve first-order formulas. If empty (or default), always use a solver for higher-order formulas. *)
   
-  ; coe : string [@default ""]
+  ; coe : string [@default "1,1"]
   (** Initial coefficients for approximating mu and exists. Speficfy such as "1,8" (default is "1,1") *)
   
   ; dry_run : bool [@default false]
@@ -108,10 +108,10 @@ type params =
   ; disable_lexicographic: bool [@default false]
   (** Disable trying encoding of lexicographic order *)
   
-  ; disable_add_arguments : bool [@default false]
+  ; disable_add_arguments : bool [@default true]
   (** Disable adding integer arguments that represent information of higher-order arguments *)
   
-  ; coe_arguments : string [@default ""]
+  ; coe_arguments : string [@default "1,0"]
   (** Coefficients of added arguments (default: 1,0) *)
   
   ; no_elim : bool [@default false]

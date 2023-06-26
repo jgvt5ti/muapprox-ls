@@ -439,16 +439,21 @@ let get_guessed_conditions_rep coe arg_terms term =
   |> List.map
     (fun arg_term -> 
       let open Arith in
-      let pterm = Op(Add, [term; Op(Mult, [Int coe; arg_term])]) in
-      let nterm = Op(Add, [term; Op(Mult, [Int (-coe); arg_term])]) in
-      pterm :: [nterm]
+      match arg_term with
+      | Size (_) -> [Op(Add, [term; Op(Mult, [Int coe; arg_term])])]
+      | _ ->
+        let pterm = Op(Add, [term; Op(Mult, [Int coe; arg_term])]) in
+        let nterm = Op(Add, [term; Op(Mult, [Int (-coe); arg_term])]) in
+        pterm :: [nterm]
     )
   |> List.flatten
 
 let get_guessed_conditions coe1 coe2 guessed_terms =
   let const_term = Arith.Int coe2 in
-  let res = (get_guessed_conditions_rep coe1 guessed_terms const_term) @ [const_term] in
-  res
+  let guessed_conditions = get_guessed_conditions_rep coe1 guessed_terms const_term in
+  if guessed_conditions = [] then
+    [const_term]
+  else guessed_conditions
 
 let to_ty argty basety =
   let rec go argty = match argty with
