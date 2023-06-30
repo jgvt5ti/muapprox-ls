@@ -1,2 +1,3 @@
 %HES
-Sentry =v [] <>l (0 :: []).
+Sentry =v ∃ls. P ls.
+P ls =v (ls =l []) \/ ∀hd.∀tl. (ls <>l (hd :: tl) \/ P tl).

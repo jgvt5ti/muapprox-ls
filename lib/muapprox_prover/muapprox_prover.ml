@@ -407,8 +407,7 @@ module KatsuraSolver : BackendSolver = struct
   let solver_command hes_path solver_options stop_if_intractable will_try_weak_subtype remove_disjunction_only remove_temporary_files =
     let solver_path = get_katsura_solver_path () in
     Array.of_list (
-      solver_path :: ["--solve-dual=auto-conservative"] @
-        (if solver_options.no_disprove then ["--no-disprove"] else []) @
+      [solver_path] @
         (List.filter_map (fun x -> x)
           [
             (if solver_options.no_backend_inlining then Some "--no-inlining" else None);
@@ -466,6 +465,7 @@ module KatsuraSolver : BackendSolver = struct
     >>= (fun path ->
       let debug_context = { debug_context with temp_file = path } in
       let command = solver_command path solve_options stop_if_intractable will_try_weak_subtype stop_if_tractable !Solve_options.remove_temporary_files in
+      (* Array.iter (fun str -> print_endline str) command; *)
       if solve_options.dry_run then failwith @@ "DRY RUN (" ^ show_debug_context debug_context ^ ") / command: " ^ (Array.to_list command |> String.concat " ");
       run_command_with_timeout solve_options.timeout command (Some debug_context.mode) >>|
         (fun (status_code, elapsed, stdout, stderr) ->
@@ -991,7 +991,7 @@ let rec mu_elim_solver ?(cached_formula=None) iter_count (solve_options : Solve_
     };
     elapsed_all = -1.0;
     will_try_weak_subtype = solve_options.try_weak_subtype;
-    remove_disjunctions = false;
+    remove_disjunctions = true;
   } in
   (* e.g. solvers = [(* an instantiation of variables quantified by exists, e.g. x1 = 0 *)[solve with hoice, solve with z3]; (* x1 = 1*)[solve with hoice, solve with z3]]
     For each instantiation, if both hoice and z3 returned "fail," then the overall result is "fail."
@@ -1244,7 +1244,7 @@ let check_validity_full_entry solve_options hes iter_count_offset =
 let solve_onlynu_onlyforall_with_schedule (solve_options : Solve_options.options) nu_only_hes =
   let solve_options =
     { solve_options with
-      no_elim = true; no_disprove = false; oneshot = true } in
+      no_elim = true; no_disprove = true; oneshot = true } in
   let dresult = mu_elim_solver 1 solve_options nu_only_hes "solver" 0 in
   dresult >>=
     (fun ri -> kill_processes "solver" >>|

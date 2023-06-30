@@ -695,7 +695,9 @@ let encode_body_exists_formula_sub
                 (fun acc t -> App (acc, t))
                 (Var new_pvar)
               ) in
-          (terms1 @ terms2 0 @ terms2 1) |> formula_fold (fun acc f -> Or (acc, f))),
+          (terms1 @ terms2 0 @ terms2 1)
+          |> Hflmc2_util.remove_duplicates (=)
+          |> formula_fold (fun acc f -> Or (acc, f))),
           (List.tl bound_vars)
           |> List.map begin
               fun var ->
@@ -704,6 +706,7 @@ let encode_body_exists_formula_sub
                 else
                   Pred (Le, [Var {var with ty=`Int}; Var {upperbound_var with ty=`Int}], [])
             end
+          |> Hflmc2_util.remove_duplicates (=)
           |> formula_fold (fun acc f -> And (acc, f))
         )
     }]
