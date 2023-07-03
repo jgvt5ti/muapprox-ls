@@ -129,17 +129,16 @@ module Subst = struct
             | _ -> assert false
             end
         | Op(op, as') -> Op(op, List.map ~f:(arith env) as')
-        | Size ls -> Size (lsexpr env ls)
+        | Size (size, ls) -> Size (size, lsexpr env ls)
     and lsexpr : 'ty S.Hflz.t env -> S.Arith.lt -> S.Arith.lt =
       fun env a -> match a with
-        | Nil -> a
         | LVar x ->
             begin match IdMap.find env x with
             | None -> a
             | Some (LsExpr a') -> a'
             | _ -> assert false
             end
-        | Cons(hd, tl) -> Cons(arith env hd, lsexpr env tl)
+        | Opl(opl, as', ls') -> Opl(opl, List.map ~f:(arith env) as', List.map ~f:(lsexpr env) ls')
 
     let rec rename_binding_if_necessary (env : IdSet.t) (phi : 'ty S.Hflz.t): 'ty S.Hflz.t =
       let open S in

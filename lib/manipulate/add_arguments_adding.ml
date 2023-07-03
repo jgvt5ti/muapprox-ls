@@ -307,7 +307,7 @@ let make_bounds simplifier xs ls c1 c2 r =
     List.map
       (fun x ->
         (* r < (c1 * size x) + c2 *)
-        T.Pred (Lt, [Var r; simplifier (Arith.Op (Add, [(Op (Mult, [Int c1; Size x])); Int c2])) |> Simplify.standarize], []);
+        T.Pred (Lt, [Var r; simplifier (Arith.Op (Add, [(Op (Mult, [Int c1; Size (Length, x)])); Int c2])) |> Simplify.standarize], []);
       )
       ls in
   let bounds = Hflmc2_util.remove_duplicates (=) (List.append bounds bounds_ls) in
@@ -355,11 +355,11 @@ let get_free_variables_in_arith a =
     | Arith.Op (_, xs) -> List.map go xs |> List.flatten
     | Int _ -> []
     | Var x -> [x]
-    | Size ls -> go_ls ls
+    | Size (_, ls) -> go_ls ls
   and go_ls ls = match ls with
-    | Cons (hd, tl) ->
-      let v1 = go hd in
-      let v2 = go_ls tl in
+    | Arith.Opl (_, a, l) ->
+      let v1 = List.map go a |> List.flatten in
+      let v2 = List.map go_ls l |> List.flatten in
       v1 @ v2
     | _ -> [] in
   go a
@@ -452,17 +452,17 @@ let get_occuring_arith_terms phi added_vars =
     | Int _ -> []
     | Var v -> [Id.remove_ty v]
     | Op (_, xs) -> List.map get_occurring_arith_vars xs |> List.concat
-    | Size ls -> get_occurring_vars_from_lsexpr ls
+    | Size (_, ls) -> get_occurring_vars_from_lsexpr ls
   and get_occurring_vars_from_lsexpr phi = match phi with
-    | Arith.Cons (hd, tl) -> 
-        let v1 = get_occurring_arith_vars hd in
-        let v2 = get_occurring_vars_from_lsexpr tl in
+    | Arith.Opl (_, a, l) ->
+        let v1 = List.map get_occurring_arith_vars a |> List.concat in
+        let v2 = List.map get_occurring_vars_from_lsexpr l |> List.concat in
         v1 @ v2
     | _ -> []
   and get_occurring_arith_from_lsexpr phi = match phi with
-    | Cons (hd, tl) -> 
-        let v1 = go_hflz (Arith hd) in
-        let v2 = go_hflz (LsExpr tl) in
+    | Opl (_, a, l) -> 
+        let v1 = List.concat_map (fun arg -> go_hflz (Arith arg)) a in
+        let v2 = List.concat_map (fun arg -> go_hflz (LsExpr arg)) l in
         v1 @ v2
     | _ -> []
   in
@@ -497,17 +497,17 @@ let get_occuring_lsexprs phi added_vars =
     | Int _ -> []
     | Var _ -> []
     | Op (_, xs) -> List.map get_occurring_lsexpr_from_arith xs |> List.concat
-    | Size ls -> go_hflz (LsExpr ls)
+    | Size (_, ls) -> go_hflz (LsExpr ls)
   and get_occurring_lvar_from_arith a = match a with
     | Arith.Int _ -> []
     | Var _ -> []
     | Op (_, xs) -> List.map get_occurring_lvar_from_arith xs |> List.concat
-    | Size ls -> get_occurring_lsexpr_vars ls
+    | Size (_, ls) -> get_occurring_lsexpr_vars ls
   and get_occurring_lsexpr_vars phi = match phi with
     | LVar v -> [Id.remove_ty v]
-    | Cons (hd, tl) -> 
-        let v1 = get_occurring_lvar_from_arith hd in
-        let v2 = get_occurring_lsexpr_vars tl in
+    | Opl (_, a, l) -> 
+        let v1 = List.map get_occurring_lvar_from_arith a |> List.concat in
+        let v2 = List.map get_occurring_lsexpr_vars l |> List.concat in
         v1 @ v2
     | _ -> []
   in
@@ -849,11 +849,10 @@ let add_params c1 c2 outer_mu_funcs (rules : ptype2 thes_rule_in_out list) do_no
     | Int i -> Int i
     | Var x -> Var {x with ty=TInt'}
     | Op (o, ps) -> Op (o, List.map go_arith ps)
-    | Size ls -> Size (go_lsexpr ls)
+    | Size (size, ls) -> Size (size, go_lsexpr ls)
   and go_lsexpr a = match a with
-    | Nil -> Nil
     | LVar x -> LVar {x with ty=TList'}
-    | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
+    | Opl (opl, a, l) -> Opl (opl, List.map go_arith a, List.map go_lsexpr l)
   in
   let global_env = List.map (fun {var_in_out; fix; _} -> var_in_out, fix) rules in
   let rules =
@@ -933,14 +932,13 @@ let to_hes (rules : (ptype' Id.t * ptype' T.thflz * T.fixpoint) list) =
       Var {x with ty=`Int}
     | Op (p, ps) ->
       Op (p, List.map go_arith ps)
-    | Size ls -> Size (go_lsexpr ls)
+    | Size (size, ls) -> Size (size, go_lsexpr ls)
   and go_lsexpr a = match a with
-    | Nil -> Nil
     | LVar x ->  
       assert (x.ty = TList');
       LVar {x with ty=`List}
-    | Cons (hd, tl) ->
-      Cons (go_arith hd, go_lsexpr tl)
+    | Opl (opl, a, l) ->
+      Opl (opl, List.map go_arith a, List.map go_lsexpr l)
   in
   List.map
     (fun (var, body, fix) ->

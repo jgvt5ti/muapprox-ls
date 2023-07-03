@@ -88,14 +88,13 @@ let get_free_variables phi =
     | Int _ -> []
     | Var v -> [v]
     | Op (_, ps) -> List.map go_arith ps |> List.concat
-    | Size ls -> go_lsexpr ls
+    | Size (_, ls) -> go_lsexpr ls
   and go_lsexpr a = match a with
-    | Nil -> []
     | LVar v -> [v]
-    | Cons (hd, tl) ->
-        let fv1 = go_arith hd in
-        let fv2 = go_lsexpr tl in
-        List.append fv1 fv2
+    | Opl (_, ps, ls) -> 
+      let fvs1 = List.map go_arith ps |> List.concat in
+      let fvs2 = List.map go_lsexpr ls |> List.concat in
+      List.append fvs1 fvs2
   in
   go phi
 
@@ -402,11 +401,10 @@ let to_thflz2 rules =
     | Int i -> Int i
     | Var v -> Var (convert_v_ty v)
     | Op (op, ps) -> Op (op, List.map go_arith ps)
-    | Size ls -> Size (go_lsexpr ls)
+    | Size (size, ls) -> Size (size, go_lsexpr ls)
   and go_lsexpr a = match a with
-    | Nil -> Nil
     | LVar v -> LVar (convert_v_ty v)
-    | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
+    | Opl (opl, ps, ls) -> Opl (opl, List.map go_arith ps, List.map go_lsexpr ls)
   in
   let rules =
     List.map
@@ -505,18 +503,17 @@ let check_thflz2_type rules =
   end
   | Op (_, args) ->
     List.iter (fun arg -> go_arith env arg) args;
-  | Size ls -> go_lsexpr env ls
+  | Size (_, ls) -> go_lsexpr env ls
   and go_lsexpr env a = match a with
-    | Nil -> ()
     | LVar v -> begin
       match List.find_all (fun v' -> Id.eq v' v) env with
       | [id'] ->
         assert (id'.ty = TList)
       | _ -> assert false
     end
-    | Cons (hd, tl) ->
-      go_arith env hd;
-      go_lsexpr env tl
+    | Opl (_, arga, argl) ->
+      List.iter (fun arg -> go_arith env arg) arga;
+      List.iter (fun arg -> go_lsexpr env arg) argl;
   in
   List.iter
     (fun {var; body; _} ->
@@ -588,12 +585,11 @@ and go_arith a =
   | Int i -> Int i
   | Var v -> Var {v with ty=`Int}
   | Op (op, as') -> Op (op, List.map go_arith as')
-  | Size ls -> Size (go_lsexpr ls)
+  | Size (size, ls) -> Size (size, go_lsexpr ls)
 and go_lsexpr a =
   match a with
-  | Nil -> Nil
   | LVar v -> LVar {v with ty=`List}
-  | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
+  | Opl (opl, as', ls') -> Opl (opl, List.map go_arith as', List.map go_lsexpr ls')
   
 let to_hes rules =
   let pred_vars =

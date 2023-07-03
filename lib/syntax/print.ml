@@ -104,8 +104,12 @@ let op_ : Arith.op t_with_prec =
 let cons =
   fun ppf _ -> Fmt.string ppf "::"
 
-let size =
-  fun ppf _ -> Fmt.string ppf "size"
+let tail =
+  fun ppf _ -> Fmt.string ppf "tail"
+
+let prim = function
+| Arith.Length -> fun ppf _ -> Fmt.string ppf "size"
+| Arith.Head -> fun ppf _ -> Fmt.string ppf "head"
 
 let global_not_output_zero_minus_as_negative_value = ref false
 
@@ -136,15 +140,19 @@ let rec gen_arith_ : 'avar t_with_prec ->  'lvar t_with_prec ->
         show_paren (prec > Prec.neg) ppf "-%a"
           (gen_arith_ avar_ lvar_ Prec.(succ neg)) a'
     | Op _ -> show_op a
-    | Size ls ->
+    | Size (size, ls) ->
       show_paren (prec > Prec.app) ppf "@[<1>%a@ %a@]"
-        size()
+        (prim size)()
         (gen_lsexpr_ avar_ lvar_ Prec.app) ls
 and gen_lsexpr_ : 'avar t_with_prec -> 'lvar t_with_prec -> ('avar, 'lvar) Arith.gen_lt t_with_prec =
   fun avar_ lvar_ prec ppf a -> match a with
-    | Nil -> Fmt.string ppf "[]"
     | LVar x -> lvar_ prec ppf x
-    | Cons (hd, tl) ->
+    | Opl (Nil,_,_) -> Fmt.string ppf "[]"
+    | Opl (Tail, [], [ls]) -> 
+      show_paren (prec > Prec.app) ppf "@[<1>%a@ %a@]"
+        tail ()
+        (gen_lsexpr_ avar_ lvar_ Prec.app) ls
+    | Opl (Cons, [hd], [tl]) ->
       let op_prec = Prec.of_cons in
       let prec_l = op_prec in
       let prec_r = Prec.succ op_prec in
@@ -152,6 +160,7 @@ and gen_lsexpr_ : 'avar t_with_prec -> 'lvar t_with_prec -> ('avar, 'lvar) Arith
           (gen_arith_ avar_ lvar_ prec_l) hd
           cons ()
           (gen_lsexpr_ avar_ lvar_ prec_r) tl
+    | _ -> assert false
 
 let gen_arith : 'avar t_with_prec -> 'lvar t_with_prec -> ('avar, 'lvar) Arith.gen_t t =
   fun avar_ lvar_ ppf a -> gen_arith_ avar_ lvar_ Prec.zero ppf a

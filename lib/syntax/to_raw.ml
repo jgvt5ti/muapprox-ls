@@ -21,10 +21,9 @@ let convert_hflz without_id phi =
     | A.Int i -> R.Int i
     | A.Op (op, xs) -> R.Op (op, List.map go_arith xs)
     | A.Var v -> R.Var (to_string v)
-    | A.Size ls -> R.Size (go_lsexpr ls)
+    | A.Size (size, ls) -> R.Size (size, go_lsexpr ls)
   and go_lsexpr a = match a with
-    | A.Nil -> R.Nil
-    | A.Cons (hd, tl) -> R.Cons (go_arith hd, go_lsexpr tl)
+    | A.Opl(opl, as', ls') -> R.Opl (opl, List.map go_arith as', List.map go_lsexpr ls')
     | A.LVar v -> R.Var (to_string v)
   in
   go phi

@@ -9,9 +9,8 @@ type raw_hflz =
   | App  of raw_hflz * raw_hflz
   | Int  of int
   | Op   of Arith.op * raw_hflz list
-  | Size of raw_hflz
-  | Nil
-  | Cons of raw_hflz * raw_hflz
+  | Opl  of Arith.opl * raw_hflz list * raw_hflz list
+  | Size of Arith.size * raw_hflz
   | Pred of Formula.pred * raw_hflz list * raw_hflz list
   | Forall of string * raw_hflz
   | Exists of string * raw_hflz
@@ -28,9 +27,11 @@ type hes = hes_rule list
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
 let mk_int n     = Int(n)
-let mk_nil = Nil
-let mk_cons hd tl = Cons (hd, tl)
-let mk_size ls = Size ls
+let mk_nil = Opl(Nil, [], [])
+let mk_cons hd tl = Opl (Cons, [hd], [tl])
+let mk_head ls = Size (Head, ls)
+let mk_tail ls = Opl (Tail, [], [ls])
+let mk_size ls = Size (Length, ls)
 let mk_bool b    = Bool b
 let mk_var x     = Var x
 let mk_op op as' = Op(op,as')
@@ -262,12 +263,11 @@ module Typing = struct
             in
             self#add_ty_env x (TvInt (InfoProg {expr=Var name})); Arith.mk_var x
         | Op (op, as') -> Op (op, List.map ~f:(self#arith id_env) as')
-        | Size ls -> Size (self#lsexpr id_env ls)
+        | Size (size, ls) -> Size (size, self#lsexpr id_env ls)
         | _ -> failwith @@ "annot.arith (should be arithmetic expression. but found \"" ^ show_raw_hflz a ^ "\")"
     method lsexpr : id_env -> raw_hflz -> Arith.lt =
       fun id_env ls -> match ls with
-        | Nil -> Arith.mk_nil
-        | Cons (hd, tl) -> Arith.mk_cons (self#arith id_env hd) (self#lsexpr id_env tl)
+        | Opl (opl, as', ls') -> Opl(opl, List.map ~f:(self#arith id_env) as', List.map ~f:(self#lsexpr id_env) ls')
         | Var name ->
             let x =
               match
@@ -332,7 +332,7 @@ module Typing = struct
         | Int _ | Op _  | Size _ ->
             unify tv (TvInt(InfoProg{expr=psi}));
             Arith (self#arith id_env psi)
-        | Nil | Cons _ ->
+        | Opl _ ->
             unify tv (TvList(InfoProg{expr=psi}));
             LsExpr (self#lsexpr id_env psi)
         | Abs(name, psi) ->

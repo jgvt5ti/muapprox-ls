@@ -21,7 +21,8 @@ open Raw_hflz
 %token EQ "=" NEQ "<>" LE "<=" GE ">=" LT "<" GT ">"
 %token NOT "not" IMPLY "=>" IFF "<=>"
 %token AND "&&" OR "||"
-%token NIL "[]" CONS "::" EQL "=l" NEQL "<>l" SIZE "size"
+%token NIL "[]" CONS "::" EQL "=l" NEQL "<>l"
+%token SIZE "size" HEAD "head" TAIL "tail"
 
 // unused
 %token COLON ":"
@@ -90,6 +91,8 @@ arith_expr:
 
 app_expr:
 | "size" atom { mk_size $2}
+| "head" atom { mk_head $2}
+| "tail" atom { mk_tail $2}
 | atom atom* { mk_apps $1 $2 }
 
 atom:

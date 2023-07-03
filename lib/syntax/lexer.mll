@@ -32,6 +32,8 @@ rule token = parse
 | "=l"                     { EQL       }
 | "<>l"                    { NEQL      }
 | "size"                   { SIZE      }
+| "head"                   { HEAD      }
+| "tail"                   { TAIL      }
 | "!" | "not"              { NOT       }
 | ("\\"|"λ")               { LAMBDA    }
 | ("=v"|"=ν")              { DEF_G     }

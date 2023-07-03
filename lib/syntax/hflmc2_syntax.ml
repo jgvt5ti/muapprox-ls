@@ -87,7 +87,9 @@ end = struct
             | I.T_NEQL      -> "NEQL"
             | I.T_EQL       -> "EQL"
             | I.T_CONS      -> "CONS"
-            | I.T_SIZE       -> "SIZE"
+            | I.T_SIZE      -> "SIZE"
+            | I.T_HEAD      -> "HEAD"
+            | I.T_TAIL      -> "TAIL"
             end
         | I.X (I.N x) -> print @@ begin match x with
             | I.N_uvar                     -> "uvar"

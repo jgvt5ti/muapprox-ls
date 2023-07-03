@@ -72,7 +72,7 @@ let make_approx_formula fa_var_f bounds =
 
 let make_approx_formula_ls fa_var_f bounds = 
   bounds
-  |> List.map (fun bound -> Pred (Lt, [Size (LVar fa_var_f); bound], []))
+  |> List.map (fun bound -> Pred (Lt, [Size (Length, LVar fa_var_f); bound], []))
   |> formula_fold (fun acc f -> Or (acc, f))
 
 (* abstractioの順序を逆にする *)
@@ -282,19 +282,18 @@ let get_occuring_arith_terms id_type_map phi =
   and get_occurring_arith_vars phi = match phi with
     | Int _ -> []
     | Var v -> [Id.remove_ty v]
-    | Op (_, xs) -> List.map get_occurring_arith_vars xs |> List.concat
-    | Size ls -> get_occurring_vars_from_lsexpr ls
+    | Op (_, xs) -> List.map (get_occurring_arith_vars) xs |> List.concat
+    | Size (_, ls) -> get_occurring_vars_from_lsexpr ls
   and get_occurring_vars_from_lsexpr phi = match phi with
-    | Arith.Cons (hd, tl) -> 
-        []
-        (* let v1 = get_occurring_arith_vars hd in
-        let v2 = get_occurring_vars_from_lsexpr tl in
-        v1 @ v2 *)
+    | Arith.Opl (_, a, l) -> 
+        let v1 = List.map get_occurring_arith_vars a |> List.concat in
+        let v2 = List.map get_occurring_vars_from_lsexpr l |> List.concat in
+        v1 @ v2
     | _ -> []
   and get_occurring_arith_from_lsexpr phi = match phi with
-    | Arith.Cons (hd, tl) -> 
-        let v1 = go_hflz (Arith hd) in
-        let v2 = go_hflz (LsExpr tl) in
+    | Arith.Opl (_, as', ls') -> 
+        let v1 = List.map (fun a -> go_hflz (Arith a)) as' |> List.concat in
+        let v2 = List.map get_occurring_arith_from_lsexpr ls' |> List.concat in
         v1 @ v2
     | _ -> []
   in
@@ -328,19 +327,18 @@ let get_occuring_lsexprs id_type_map phi =
     | Int _ -> []
     | Var _ -> []
     | Op (_, xs) -> List.map get_occurring_lsexpr_from_arith xs |> List.concat
-    | Size ls -> go_hflz (LsExpr ls)
+    | Size (_, ls) -> go_hflz (LsExpr ls)
   and get_occurring_lvar_from_arith a = match a with
     | Arith.Int _ -> []
     | Var _ -> []
     | Op (_, xs) -> List.map get_occurring_lvar_from_arith xs |> List.concat
-    | Size ls -> get_occurring_lsexpr_vars ls
+    | Size (_, ls) -> get_occurring_lsexpr_vars ls
   and get_occurring_lsexpr_vars phi = match phi with
     | LVar v -> [Id.remove_ty v]
-    | Cons (hd, tl) -> 
-        let v1 = get_occurring_lvar_from_arith hd in
-        let v2 = get_occurring_lsexpr_vars tl in
+    | Opl (_, a, l) -> 
+        let v1 = List.map get_occurring_lvar_from_arith a |> List.concat in
+        let v2 = List.map get_occurring_lsexpr_vars l |> List.concat in
         v1 @ v2
-    | _ -> []
   in
   go_hflz phi |> List.map fst
 
@@ -377,7 +375,7 @@ let to_initial v =
   if v.Id.ty = Type.TyInt then
     Arith (Int 0)
   else
-    LsExpr (Nil)
+    LsExpr (Opl (Nil, [], []))
 
 let get_guessed_terms
     (id_type_map : (unit Id.t, Hflz_util.variable_type, Hflmc2_syntax.IdMap.Key.comparator_witness) Base.Map.t)
@@ -398,7 +396,7 @@ let get_guessed_terms
   log_string @@ Hflmc2_util.show_list (fun (var_obj, var_arith) -> Id.to_string var_obj ^ ": " ^ Id.to_string var_arith) id_ho_map;
   let open Hflmc2_syntax in
   let ls = List.map (get_occuring_lsexprs id_type_map) arg_terms |> List.concat in
-  let sizes = List.map (fun ls -> Arith.Size ls) ls in
+  let sizes = List.map (fun ls -> Arith.Size (Length, ls)) ls in
   let all_terms =
     (List.map (get_occuring_arith_terms id_type_map) arg_terms |> List.concat) @ sizes @
     (List.filter_map
@@ -481,9 +479,9 @@ let subst_arith_var replaced formula =
     | Arith.Int _ -> arith
     | Arith.Op (x, xs) -> Arith.Op(x, List.map go_arith xs)
     | Arith.Var x -> replaced x
-    | Arith.Size ls -> Size (go_lsexpr ls)
+    | Arith.Size (size, ls) -> Size (size, go_lsexpr ls)
   and go_lsexpr ls = match ls with
-    | Arith.Cons (hd, tl) -> Cons(go_arith hd, go_lsexpr tl)
+    | Arith.Opl (opl, a, l) -> Arith.Opl(opl, List.map go_arith a, List.map go_lsexpr l)
     | _ -> ls 
   in
   let rec go_formula formula = match formula with
@@ -504,11 +502,10 @@ let subst_lsexpr_var replaced formula =
     | Arith.Int _ -> arith
     | Arith.Op (x, xs) -> Arith.Op(x, List.map go_arith xs)
     | Arith.Var _ -> arith
-    | Arith.Size ls -> Size (go_lsexpr ls)
+    | Arith.Size (size, ls) -> Size (size, go_lsexpr ls)
   and go_lsexpr ls = match ls with
-    | Arith.Cons (hd, tl) -> Cons(go_arith hd, go_lsexpr tl)
+    | Arith.Opl (opl, a, l) -> Arith.Opl(opl, List.map go_arith a, List.map go_lsexpr l)
     | Arith.LVar v -> replaced v
-    | Arith.Nil -> ls
   in
   let rec go_formula formula = match formula with
     | Bool _ | Var _ -> formula
@@ -688,7 +685,7 @@ let encode_body_exists_formula_sub
                 if v.Id.ty = TyInt && Id.eq v var && v <> upperbound_var then
                   Arith (Op (Add, [Var {v with ty=`Int}; Int 1])) 
                 else if v.Id.ty = TyList && Id.eq v var then
-                  LsExpr (Cons (Int n, LVar {v with ty=`List}))
+                  LsExpr (Opl (Cons, [Int n], [LVar {v with ty=`List}]))
                 else arg_id_to_var v
               end
               |> List.fold_left
@@ -702,7 +699,7 @@ let encode_body_exists_formula_sub
           |> List.map begin
               fun var ->
                 if var.Id.ty = TyList then
-                  Pred (Le, [Size (LVar {var with ty=`List}); Var {upperbound_var with ty=`Int}], [])
+                  Pred (Le, [Size (Length, LVar {var with ty=`List}); Var {upperbound_var with ty=`Int}], [])
                 else
                   Pred (Le, [Var {var with ty=`Int}; Var {upperbound_var with ty=`Int}], [])
             end
@@ -1093,9 +1090,9 @@ let get_occurring_variables_in_arith a =
     | Arith.Var v -> [v]
     | Op (_, xs) -> List.map go xs |> List.flatten
     | Int _ -> []
-    | Size l -> go_ls l
+    | Size (_, l )-> go_ls l
   and go_ls a = match a with
-    | Cons (hd, tl) -> go hd @ go_ls tl
+    | Opl (_, a, l) -> (List.map go a @ List.map go_ls l) |> List.flatten
     | _ -> [] in
   go a
   
@@ -1106,9 +1103,9 @@ let substitute_arith a (before, after) =
     end
     | Int i -> Int i
     | Op (op, xs) -> Op (op, List.map go xs)
-    | Size l -> Size (go_ls l)
+    | Size (size, l) -> Size (size, go_ls l)
   and go_ls a = match a with
-    | Cons (hd, tl) -> Cons(go hd, go_ls tl)
+    | Opl (opl, a, l) -> Opl (opl, List.map go a, List.map go_ls l)
     | _ -> a
   in
   go a

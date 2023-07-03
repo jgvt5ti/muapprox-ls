@@ -86,10 +86,9 @@ let abbrev_variable_numbers (env : 'a Type.arg Env.t) (phi : 'a Hflz.t) =
       | None -> failwith @@ "(abbrev_variable_numbers) unbounded variable: " ^ v.name ^ " (" ^ string_of_int v.id ^ ", env: " ^ (Hflmc2_util.show_list (fun {Env.old_id; _} -> Id.to_string old_id) env) ^ ")"
     end
     | Op (op, a) -> Op (op, List.map (go_arith env) a)
-    | Size l -> Size (go_lsexpr env l)
+    | Size (size, l) -> Size (size, go_lsexpr env l)
   and go_lsexpr (env : 'a Type.arg Env.t) (a : Arith.lt) : Arith.lt =
     match a with
-    | Nil -> Nil
     | LVar v -> begin
       match Env.lookup_by_old_id env v with
       | Some new_id -> begin
@@ -99,7 +98,7 @@ let abbrev_variable_numbers (env : 'a Type.arg Env.t) (phi : 'a Hflz.t) =
       end
       | None -> failwith @@ "(abbrev_variable_numbers) unbounded variable: " ^ v.name ^ " (" ^ string_of_int v.id ^ ", env: " ^ (Hflmc2_util.show_list (fun {Env.old_id; _} -> Id.to_string old_id) env) ^ ")"
     end
-    | Cons (hd, tl) -> Cons (go_arith env hd, go_lsexpr env tl)
+    | Opl (opl, a, l) -> Opl (opl, List.map (go_arith env) a, List.map (go_lsexpr env) l)
   in
   (* log_string "abbrev_variable_numbers:";
   log_string @@ Print_syntax.show_hflz phi; *)

@@ -207,11 +207,10 @@ let abbrev_variable_names (hes : Type.simple_ty Hflz.hes): Type.simple_ty Hflz.h
     | Arith.Int i -> Arith.Int i
     | Var v -> Var (abbrev_name_id v)
     | Op (e, ps) -> Op (e, List.map go_arith ps)
-    | Size ls -> Size (go_lsexpr ls)
+    | Size (size, ls) -> Size (size, go_lsexpr ls)
   and go_lsexpr p = match p with
-    | Nil -> Nil
+    | Opl (opl, as', ls') -> Opl (opl, List.map go_arith as', List.map go_lsexpr ls')
     | LVar v -> LVar (abbrev_name_id v)
-    | Cons (hd, tl) -> Cons (go_arith hd, go_lsexpr tl)
   in
   List.map (fun {Hflz.var; body; fix} ->
     let body = go body in

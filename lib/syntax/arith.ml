@@ -8,16 +8,27 @@ type op =
   | Mod
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
+type opl =
+  | Nil
+  | Cons
+  | Tail
+  [@@deriving eq,ord,show,iter,map,fold,sexp]
+
+(* List -> Int *)
+type size =
+  | Length
+  | Head
+  [@@deriving eq,ord,show,iter,map,fold,sexp]
+
 (* arithmetic expresion parametrized by variable type *)
 type ('avar, 'lvar) gen_t =
   | Int of int
   | Var of 'avar
   | Op  of op * ('avar, 'lvar) gen_t list
-  | Size of ('avar, 'lvar) gen_lt
+  | Size of size * ('avar, 'lvar) gen_lt
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 and ('avar, 'lvar) gen_lt =
-  | Nil
-  | Cons of ('avar, 'lvar) gen_t * ('avar, 'lvar) gen_lt
+  | Opl of opl * ('avar, 'lvar) gen_t list * ('avar, 'lvar) gen_lt list
   | LVar of 'lvar
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
@@ -28,8 +39,9 @@ type lt = ([`Int] Id.t, [`List] Id.t) gen_lt
   [@@deriving eq,ord,show,iter,map,fold,sexp]
 
 let mk_int n     = Int(n)
-let mk_nil       = Nil
-let mk_cons hd tl  = Cons(hd,tl)
+let mk_nil       = Opl(Nil, [], [])
+let mk_cons hd tl  = Opl(Cons, [hd], [tl])
+let mk_tail ls  = Opl(Tail, [], [ls])
 let mk_op op as' = Op(op,as')
 let mk_var' v    = Var v
 (* specific to [t] *)
@@ -49,13 +61,13 @@ let rec fvs : ('avar, 'lvar) gen_t -> 'avar list * 'lvar list = function
   | Op (_, as') -> 
     let v = List.map as' ~f:fvs in
     fold_two_lists v
-  | Size ls -> lfvs ls
+  | Size (_, ls) -> lfvs ls
 and lfvs : ('avar, 'lvar) gen_lt -> 'avar list * 'lvar list = function
-  | Nil -> [], []
-  | Cons (hd, tl) -> 
-    let (avs1, lvs1) = fvs hd in
-    let (avs2, lvs2) = lfvs tl in
-    (List.append avs1 avs2, List.append lvs1 lvs2)
+  | Opl (_, as', ls') -> 
+    let fvs1 = List.map ~f:fvs as' in
+    let fvs2 = List.map ~f:lfvs ls' in
+    let fvs = fvs1 @ fvs2 in
+    fold_two_lists fvs
   | LVar v -> [], [v]
 
 let fvs_of_ariths as' = 
@@ -182,7 +194,7 @@ let rec simple_partial_evaluate_ psi = match psi with
   end
   | Var x -> Var x
   | Int x -> Int x
-  | Size l -> Size l
+  | Size (size, l) -> Size (size, l)
 
 let simple_partial_evaluate psi =
   simple_partial_evaluate_ psi

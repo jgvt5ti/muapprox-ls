@@ -48,16 +48,15 @@ let ensure_all_variable_ids_are_unique_expr env seen_ids (phi : 'a Hflz.t) =
       | None -> assert false 
     end
     | Op (_, a) -> List.iter (go_arith env) a
-    | Size ls -> go_lsexpr env ls
+    | Size (_, ls) -> go_lsexpr env ls
   and go_lsexpr env (a : Arith.lt) = match a with
-    | Nil -> ()
     | LVar v -> begin
       match List.find_opt (Id.eq @@ {v with ty=Type.TyList}) env with
       | Some _ -> ()
       | None -> assert false 
     end
-    | Cons (hd, tl) ->
-      go_arith env hd; go_lsexpr env tl in
+    | Opl (_, a, l) -> List.iter (go_arith env) a; List.iter (go_lsexpr env) l
+  in
   go env phi
 
 let ensure_all_variable_ids_are_unique (hes : 'a hes) =
@@ -96,14 +95,13 @@ let rec type_check_arith : ty_env -> Arith.t -> bool = fun env arith ->
   | Arith.Op (_, args) ->
     List.length args = 2 &&
     List.for_all go args
-  | Arith.Size ls -> (type_check_lsexpr env ls) in
+  | Arith.Size (_, ls) -> (type_check_lsexpr env ls) in
   go arith
 and type_check_lsexpr : ty_env -> Arith.lt -> bool = fun env lsarith ->
   let show_arg_ty = fun fmt ty -> Format.pp_print_string fmt @@ Type.show_ty Fmt.nop ty in
   let show_arg = Type.show_arg show_arg_ty in
   let show_id = Id.show Fmt.nop in
   let rec go = fun arith -> match arith with
-  | Arith.Nil -> true
   | Arith.LVar v -> begin
     match List.find_opt (fun k -> Id.eq k v) env with
     | Some {Id.ty=ty'; _} ->
@@ -112,8 +110,9 @@ and type_check_lsexpr : ty_env -> Arith.lt -> bool = fun env lsarith ->
       else failwith @@ "[LsExpr] var `" ^ show_id v ^ "`'s type should be List, but actual: " ^ show_arg ty' ^ "."
     | None -> failwith @@ "[LsExpr] unbound var `" ^ show_id v ^ "`' "
   end
-  | Arith.Cons (hd, tl) ->
-    (type_check_arith env hd) && go tl in
+  | Opl (_, arga, argl) ->
+    List.for_all (type_check_arith env) arga && List.for_all go argl
+  in
   go lsarith
 
 let get_hflz_type : ty_env -> Type.simple_ty Hflz.t -> Type.simple_ty = fun env hfl ->

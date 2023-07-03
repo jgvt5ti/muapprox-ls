@@ -94,12 +94,11 @@ let get_thflz_type env phi =
         assert (ty = TInt);
       ) args;
       TInt
-    | Size l ->
+    | Size (_, l) ->
       let ty = go_lsexpr env l in
       assert (ty = TList);
       TInt
   and go_lsexpr env a = match a with
-    | Nil -> TList
     | LVar v -> begin
       match List.find_all (fun v' -> Id.eq v' v) env with
       | [id'] ->
@@ -107,11 +106,15 @@ let get_thflz_type env phi =
         TList
       | _ -> assert false
     end
-    | Cons (hd, tl) ->
-      let tyhd = go_arith env hd in
-      let tytl = go_lsexpr env tl in
-      assert (tyhd = TInt);
-      assert (tytl = TList);
+    | Opl (_, arga, argl) ->
+      List.iter (fun arg ->
+        let ty = go_arith env arg in
+        assert (ty = TInt);
+      ) arga;
+      List.iter (fun arg ->
+        let ty = go_lsexpr env arg in
+        assert (ty = TList);
+      ) argl;
       TList
   in
   go env phi
@@ -166,13 +169,12 @@ let to_thflzs hes =
       Var {v with ty=TInt}
     | Op (e, ps) ->
       Op (e, List.map go_arith ps)
-    | Size ls -> Size (go_lsexpr ls)
+    | Size (size, ls) -> Size (size, go_lsexpr ls)
   and go_lsexpr a = match a with
-    | Nil -> Nil
     | LVar v ->
       LVar {v with ty=TList}
-    | Cons (hd, tl) ->
-      Cons (go_arith hd, go_lsexpr tl)
+    | Opl (opl, as', ls') ->
+      Opl (opl, List.map go_arith as', List.map go_lsexpr ls')
   in
   List.map
     (fun {Hflz.var; body; fix} ->
