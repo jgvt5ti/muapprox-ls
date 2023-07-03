@@ -663,7 +663,10 @@ let encode_body_exists_formula_sub
               go (acc |>
                   List.map (fun hfl -> 
                     hfl::[
-                      if x.Id.ty = TyList then begin
+                      if x = upperbound_var then begin
+                        subst_arith_var
+                          (fun vid -> if Id.eq vid x then (Arith.Op (Sub, [Var {x with ty=`Int}; Int 1])) else Var vid) hfl
+                      end else if x.Id.ty = TyList then begin
                         subst_lsexpr_var
                           (fun vid -> if Id.eq vid x then LVar {x with ty=`List} else LVar vid) hfl
                       end else begin
@@ -681,8 +684,10 @@ let encode_body_exists_formula_sub
             (List.tl bound_vars) |>
             List.map (fun var ->
               arg_vars
-              |> List.map begin fun v -> 
-                if v.Id.ty = TyInt && Id.eq v var && v <> upperbound_var then
+              |> List.map begin fun v ->
+                if v = upperbound_var then
+                   Arith (Op (Sub, [Var {v with ty=`Int}; Int 1])) 
+                else if v.Id.ty = TyInt && Id.eq v var then
                   Arith (Op (Add, [Var {v with ty=`Int}; Int 1])) 
                 else if v.Id.ty = TyList && Id.eq v var then
                   LsExpr (Opl (Cons, [Int n], [LVar {v with ty=`List}]))
@@ -695,16 +700,7 @@ let encode_body_exists_formula_sub
           (terms1 @ terms2 0 @ terms2 1)
           |> Hflmc2_util.remove_duplicates (=)
           |> formula_fold (fun acc f -> Or (acc, f))),
-          (List.tl bound_vars)
-          |> List.map begin
-              fun var ->
-                if var.Id.ty = TyList then
-                  Pred (Le, [Size (Length, LVar {var with ty=`List}); Var {upperbound_var with ty=`Int}], [])
-                else
-                  Pred (Le, [Var {var with ty=`Int}; Var {upperbound_var with ty=`Int}], [])
-            end
-          |> Hflmc2_util.remove_duplicates (=)
-          |> formula_fold (fun acc f -> And (acc, f))
+          Pred (Ge, [Var {upperbound_var with ty=`Int}; Int 0], [])
         )
     }]
 

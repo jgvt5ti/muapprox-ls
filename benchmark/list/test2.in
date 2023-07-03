@@ -1,9 +1,9 @@
 %HES
 Sentry =v ∀ls. (G ls A).
 A n =v true.
-G ls k =m ∀hd.∀tl. (ls <>l [] \/ k 0) /\
-(ls <>l (hd :: tl) \/
-  ((hd <> 0 \/ G tl A) /\
-   (hd <> 1 \/ G (0 :: tl) A)
+G ls k =m (ls <>l [] \/ k 0) /\
+(ls =l [] \/
+  ((head ls <> 0 \/ G (tail ls) A) /\
+   (head ls <> 1 \/ G (0 :: (tail ls)) A)
   )
 ).
