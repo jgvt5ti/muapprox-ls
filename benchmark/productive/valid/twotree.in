@@ -1,0 +1,14 @@
+%HES
+S =v ∀ls. G ls A.
+A n =v true.
+G ls k =m (ls <>l [] \/ k 1) /\
+(
+  ls =l [] \/
+  ((head ls) <> 0 \/ G (tail ls) A) /\
+  ((head ls) <> 1 \/ G (tail ls) A)
+).
+Add f g ls k =m (ls <>l [] \/ f [] (\r. g [] (\s. k (r + s)))) /\ 
+  (
+    ((head ls) <> 0 \/ Add (\ls. f (0 :: ls)) (\ls. g (0 :: ls)) (tail ls) k) /\
+    ((head ls) <> 1 \/ Add (\ls. f (1 :: ls)) (\ls. g (1 :: ls)) (tail ls) k)
+  ).
