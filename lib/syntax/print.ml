@@ -143,7 +143,7 @@ let rec gen_arith_ : 'avar t_with_prec ->  'lvar t_with_prec ->
     | Size (size, ls) ->
       show_paren (prec > Prec.app) ppf "@[<1>%a@ %a@]"
         (prim size)()
-        (gen_lsexpr_ avar_ lvar_ Prec.app) ls
+        (gen_lsexpr_ avar_ lvar_ Prec.(succ app)) ls
 and gen_lsexpr_ : 'avar t_with_prec -> 'lvar t_with_prec -> ('avar, 'lvar) Arith.gen_lt t_with_prec =
   fun avar_ lvar_ prec ppf a -> match a with
     | LVar x -> lvar_ prec ppf x
@@ -151,7 +151,7 @@ and gen_lsexpr_ : 'avar t_with_prec -> 'lvar t_with_prec -> ('avar, 'lvar) Arith
     | Opl (Tail, [], [ls]) -> 
       show_paren (prec > Prec.app) ppf "@[<1>%a@ %a@]"
         tail ()
-        (gen_lsexpr_ avar_ lvar_ Prec.app) ls
+        (gen_lsexpr_ avar_ lvar_ Prec.(succ app)) ls
     | Opl (Cons, [hd], [tl]) ->
       let op_prec = Prec.of_cons in
       let prec_l = op_prec in

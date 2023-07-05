@@ -299,11 +299,22 @@ let get_free_variables phi =
     | Exists (x, p) -> List.filter (fun v -> not @@ Id.eq x v) (go p)
     | App (p1, p2) -> go p1 @ go p2
     | Arith a -> go_arith a
-    | Pred (_, ps, _) -> List.map go_arith ps |> List.concat
+    | LsExpr l -> go_lsexpr l
+    | Pred (_, as', ls') ->
+      let v1 = List.map go_arith as' in
+      let v2 = List.map go_lsexpr ls' in
+      (v1 @ v2) |> List.concat
   and go_arith a = match a with
     | Int _ -> []
     | Var v -> [v]
     | Op (_, ps) -> List.map go_arith ps |> List.concat
+    | Size _ -> []
+  and go_lsexpr l = match l with
+    | LVar v -> [v]
+    | Opl(_, as', ls') ->
+      let v1 = List.map go_arith as' in
+      let v2 = List.map go_lsexpr ls' in
+      (v1 @ v2) |> List.concat
   in
   go phi
 
