@@ -9,6 +9,6 @@ G ls k =m (ls <>l [] \/ k 1) /\
 ).
 Add f g ls k =m (ls <>l [] \/ f [] (\r. g [] (\s. k (r + s)))) /\ 
   (
-    ((head ls) <> 0 \/ Add (\ls. f (0 :: ls)) (\ls. g (0 :: ls)) (tail ls) k) /\
-    ((head ls) <> 1 \/ Add (\ls. f (1 :: ls)) (\ls. g (1 :: ls)) (tail ls) k)
+    ((head ls) <> 0 \/ Add (\ls.\k. f (0 :: ls) k) (\ls.\k. g (0 :: ls) k) (tail ls) k) /\
+    ((head ls) <> 1 \/ Add (\ls.\k. f (1 :: ls) k) (\ls.\k. g (1 :: ls) k) (tail ls) k)
   ).

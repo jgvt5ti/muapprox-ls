@@ -2,6 +2,6 @@
 Sentry =v ∀ls. Fib ls A.
 A n =v true.
 Fib ls k =m (ls <>l [] \/ k 0) /\ (ls <>l (0 ::[]) \/ k 1) /\
-  (head (tail ls) <> 0 \/ Add Fib (\ls. Fib (0 :: ls)) (tail ls) k).
+  (head (tail ls) <> 0 \/ Add Fib (\ls.\k. Fib (0 :: ls) k) (tail ls) k).
 Add f g ls k =m (ls <>l [] \/ f [] (\r. g [] (\s. k (r + s)))) /\ 
-  Add (\ls. f (0 :: ls)) (\ls. g (0 :: ls)) (tail ls) k.
+  Add (\ls.\k. f (0 :: ls) k) (\ls.\k. g (0 :: ls) k) (tail ls) k.

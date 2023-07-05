@@ -2,5 +2,5 @@
 Sentry =v ∀ls. P ls A.
 A n =v true.
 T ls k =m (ls <>l [] \/ k 0) /\ (ls <>l (0 ::[]) \/ k 1) /\ (ls =l [] \/ ls =l (0 :: []) \/ T (tail ls) k).
-I f g ls k =m (ls <>l [] \/ f [] k) /\ (ls =l [] \/ I g (\ls. f (0 :: ls)) (tail ls) k).
+I f g ls k =m (ls <>l [] \/ f [] k) /\ (ls =l [] \/ I g (\ls.\k. f (0 :: ls) k) (tail ls) k).
 P ls k =v I T P ls k.
