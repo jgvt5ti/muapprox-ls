@@ -1,0 +1,7 @@
+%HES
+Sentry =v ∀n. Fib n A.
+A n =v true.
+Fib n k =m (n > 0 \/ k 0) /\ (n > 1 \/ k 1) /\
+  (n <= 1 \/ Add Fib (\m.\k. Fib (m + 1) k) (n - 2) k).
+Add f g n k =m (n > 0 \/ f 0 (\r. g 0 (\s. k (r + s)))) /\ 
+  Add (\n.\k. f (n + 1) k) (\n.\k. g (n + 1) k) (n - 1) k.

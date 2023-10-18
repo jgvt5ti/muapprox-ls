@@ -9,9 +9,19 @@ let should_be_first ty =
   | ATuple.TVar _ -> assert false
   | _ -> false
 
+let should_be_second ty =
+  match ty with
+  | ATuple.TList -> true
+  | ATuple.TVar _ -> assert false
+  | _ -> false
+
 let rec conv_ty ty : ATuple.ptype2 =
   let reorder_types tys =
-    List.sort (fun (ty1, _) -> fun (ty2, _) -> ATuple.compare_ptype2 ty1 ty2) tys in
+    let (int_tys, pred_tys) =
+      List.partition (fun (ty, _) -> should_be_first ty) tys in
+    let (list_tys, pred_tys) =
+      List.partition (fun (ty, _) -> should_be_second ty) pred_tys in
+    int_tys @ list_tys @ pred_tys in
   match ty with
   | ATuple.TFunc (argtys, bodyty) ->
     let argtys =
@@ -21,19 +31,25 @@ let rec conv_ty ty : ATuple.ptype2 =
     let bodyty = conv_ty bodyty in
     ATuple.TFunc (argtys, bodyty)
   | TVar _ -> assert false
-  | TInt | TList| TBool -> ty
+  | TInt | TList | TBool -> ty
 
 let reorder_hflz body =
   let reorder_args args =
     let (int_args, pred_args) =
       List.partition (fun arg -> should_be_first arg.Id.ty) args in
-    int_args @ pred_args in
+    let (list_args, pred_args) =
+      List.partition (fun arg -> should_be_second arg.Id.ty) pred_args in
+    int_args @ list_args @ pred_args in
   let reorder_apps apps =
     let (int_apps, pred_apps) =
       List.partition
         (fun app -> should_be_first (ATuple.get_thflz2_type_without_check app))
         apps in
-    int_apps @ pred_apps in
+    let (list_apps, pred_apps) =
+      List.partition
+        (fun app -> should_be_second (ATuple.get_thflz2_type_without_check app))
+        pred_apps in
+    int_apps @ list_apps @ pred_apps in
   let rec go body = match body with
     | ATuple.Abs (args, body, ty') -> begin
       let args =
