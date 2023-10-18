@@ -165,7 +165,7 @@ type params =
   ; remove_temporary_files : bool [@default false]
   (** Remove temporary files in /tmp on exit  *)
   
-  ; disable_reordering_of_arguments : bool [@deafult false]
+  ; disable_reordering_of_arguments : bool [@deafult true]
   (** Do not reorder arguments where we move higher-order arguments to the last if possibe *)
   
   ; add_nu_level_extra_arguments : bool [@default false]
