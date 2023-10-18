@@ -11,9 +11,7 @@ let should_be_first ty =
 
 let rec conv_ty ty : ATuple.ptype2 =
   let reorder_types tys =
-    let (int_tys, pred_tys) =
-      List.partition (fun (ty, _) -> should_be_first ty) tys in
-    int_tys @ pred_tys in
+    List.sort (fun (ty1, _) -> fun (ty2, _) -> ATuple.compare_ptype2 ty1 ty2) tys in
   match ty with
   | ATuple.TFunc (argtys, bodyty) ->
     let argtys =
@@ -23,7 +21,7 @@ let rec conv_ty ty : ATuple.ptype2 =
     let bodyty = conv_ty bodyty in
     ATuple.TFunc (argtys, bodyty)
   | TVar _ -> assert false
-  | TInt | TBool -> ty
+  | TInt | TList| TBool -> ty
 
 let reorder_hflz body =
   let reorder_args args =
@@ -64,6 +62,7 @@ let reorder_hflz body =
     | Exists (x, p) ->
       Exists (x, go p)
     | Arith a -> Arith a
+    | LsExpr l -> LsExpr l
     | Pred (p, l, ls) -> Pred (p, l, ls)
   in
   go body

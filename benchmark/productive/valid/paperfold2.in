@@ -1,0 +1,6 @@
+%HES
+Sentry =v ∀ls. P ls A.
+A n =v true.
+T ls k =m (ls <> 0 \/ k 0) /\ (ls <> 1 \/ k 1) /\ (ls = 0 \/ ls = 1 \/ T (ls - 1) k).
+I f g ls k =m (ls <> 0 \/ f 0 k) /\ (ls = 0 \/ I g (\ls.\k. f (ls + 1) k) (ls - 1) k).
+P ls k =m I T P ls k.
