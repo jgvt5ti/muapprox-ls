@@ -173,7 +173,7 @@ let main file cont =
     psi
   ) else psi in *)
   let psi = if !Options.aggressive_simplification then simplify_agg_ !Options.no_eliminate_unused_arguments psi else psi in
-  let psi = if true then Manipulate.Reorder_arguments.run psi true !Options.no_temp_files else psi in
+  let psi = if solve_options.reordering_of_arguments then Manipulate.Reorder_arguments.run psi true !Options.no_temp_files else psi in
   let psi = if solve_options.add_nu_level_extra_arguments then add_nu_level_extra_arguments psi else psi in
   Muapprox_prover.check_validity solve_options psi (fun (s1, info) -> cont (s1, info))
 

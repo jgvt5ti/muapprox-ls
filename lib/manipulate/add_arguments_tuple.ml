@@ -538,6 +538,7 @@ let rec to_hflz_ty ty =
 and to_hflz_argty ty =
   match ty with
   | TInt -> Type.TyInt
+  | TList -> Type.TyList
   | TVar _ -> assert false
   | _ -> Type.TySigma (to_hflz_ty ty)
 
@@ -565,9 +566,9 @@ let rec to_hflz env body =
     let p = to_hflz env p in
     go_abs p xs
   | Forall (x, p) ->
-    Forall ({x with ty=Type.TyInt}, to_hflz env p)
+    Forall ({x with ty=to_hflz_argty x.Id.ty}, to_hflz env p)
   | Exists (x, p) ->
-    Exists ({x with ty=Type.TyInt}, to_hflz env p)
+    Exists ({x with ty=to_hflz_argty x.Id.ty}, to_hflz env p)
   | App (p, xs) ->
     let rec go_app p xs =
       match xs with
